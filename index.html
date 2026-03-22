@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8" />
+ <title>BTC Helper - Phase 2 (Historical Tracking)</title>
+ <meta name="viewport" content="width=device-width, initial-scale=1" />
+ <style>
+ :root {
+ --bg: #f5f7fb;
+ --card-bg: #ffffff;
+ --text-main: #22252a;
+ --text-muted: #6b7280;
+ --accent-aggressive: #059669;
+ --accent-normal: #2563eb;
+ --accent-cautious: #f59e0b;
+ --accent-pause: #b91c1c;
+ --border: #e5e7eb;
+ --input-bg: #f9fafb;
+ }
+ * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+ body { margin: 0; padding: 16px; background: var(--bg); color: var(--text-main); }
+ h1 { font-size: 1.6rem; margin: 0 0 4px; }
+ h2 { font-size: 1.15rem; margin: 16px 0 8px; }
+ p { margin: 4px 0 10px; color: var(--text-muted); font-size: 0.9rem; }
+ .container { max-width: 1400px; margin: 0 auto; }
+ .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: flex-start; }
+ .card { background: var(--card-bg); border-radius: 10px; padding: 14px 16px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05); border: 1px solid var(--border); }
+ .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+ button { cursor: pointer; border-radius: 6px; font-size: 0.85rem; transition: all 0.15s; }
+ button:active { transform: translateY(1px); }
+ button.primary { padding: 8px 14px; border: none; background: #111827; color: white; }
+ button.primary:hover { background: #020617; }
+ button.secondary { padding: 6px 12px; border: 1px solid #d1d5db; background: white; color: #111827; }
+ button.secondary:hover { background: #f3f4ff; }
+ button.auto-fill { padding: 6px 12px; border: 1px solid #2563eb; background: #2563eb; color: white; }
+ button.auto-fill:hover { background: #1d4ed8; }
+ button.link-btn { border: 1px solid #d1d5db; background: white; color: #111827; padding: 6px 10px; border-radius: 999px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
+ button.link-btn:hover { background: #f3f4ff; }
+ .form-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+ .form-row label { font-size: 0.8rem; color: var(--text-muted); }
+ .form-row input { width: 100%; padding: 5px 6px; border-radius: 6px; border: 1px solid #d1d5db; background: var(--input-bg); font-size: 0.85rem; }
+ .form-row small { font-size: 0.7rem; color: var(--text-muted); }
+ .section-divider { height: 1px; background: var(--border); margin: 10px 0; }
+ .result-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; color: white; }
+ .result-pill.aggressive { background: var(--accent-aggressive); }
+ .result-pill.normal { background: var(--accent-normal); }
+ .result-pill.cautious { background: var(--accent-cautious); }
+ .result-pill.pause { background: var(--accent-pause); }
+ .badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; font-size: 0.7rem; font-weight: 500; margin-right: 4px; margin-top: 2px; }
+ .badge.good { background: rgba(16, 185, 129, 0.1); color: #047857; }
+ .badge.caution { background: rgba(245, 158, 11, 0.1); color: #b45309; }
+ .badge.risk { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
+ .status-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+ .status { font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; }
+ .status.success { background: rgba(16, 185, 129, 0.15); color: #047857; }
+ .status.error { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+ .status.loading { background: rgba(37, 99, 235, 0.15); color: #1d4ed8; }
+ /* History table */
+ .history-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+ .history-table th { text-align: left; padding: 8px 6px; background: #f3f4f6; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+ .history-table td { padding: 6px; border-bottom: 1px solid var(--border); }
+ .history-table tr:hover { background: #f9fafb; }
+ .mode-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; color: white; display: inline-block; }
+ .mode-aggressive { background: var(--accent-aggressive); }
+ .mode-normal { background: var(--accent-normal); }
+ .mode-cautious { background: var(--accent-cautious); }
+ .mode-pause { background: var(--accent-pause); }
+ @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+ </style>
+</head>
+<body>
+ <div class="container">
+ <h1>BTC Helper - Phase 2 (Historical Tracking)</h1>
+ <p>Auto-fill metrics, evaluate regime, and track history over time.</p>
+
+ <div class="grid">
+ <!-- Left Column: Input & Evaluation -->
+ <div>
+ <div class="card">
+ <h2>1. Auto-Fill & Evaluate</h2>
+ <div class="button-row">
+ <button class="auto-fill" onclick="autoFillData()">🔄 Auto-Fill</button>
+ <button class="secondary" onclick="evaluateRegime()">📊 Evaluate Regime</button>
+ <button class="secondary" onclick="saveEvaluation()">💾 Save Entry</button>
+ </div>
+ <div class="status-bar" id="statusBar">
+ <span class="status" id="status1">Ready</span>
+ </div>
+
+ <div class="section-divider"></div>
+
+ <h2>2. Today's Metrics</h2>
+
+ <!-- Price/MA section -->
+ <div class="form-row">
+ <label>Spot Price</label>
+ <input id="price" type="number" step="1" placeholder="Auto-fill" />
+ <small>USD</small>
+ </div>
+ <div class="form-row">
+ <label>200-Day MA</label>
+ <input id="ma200" type="number" step="1" placeholder="Auto-calculated" />
+ <small>USD</small>
+ </div>
+ <div class="form-row">
+ <label>Realized Price</label>
+ <input id="realizedPrice" type="number" step="1" placeholder="Manual" />
+ <small>USD</small>
+ </div>
+
+ <div class="section-divider"></div>
+
+ <div class="form-row">
+ <label>MVRV‑Z</label>
+ <input id="mvrvZ" type="number" step="0.01" placeholder="Manual" />
+ <small>manual</small>
+ </div>
+ <div class="form-row">
+ <label>STH‑MVRV</label>
+ <input id="sthMvrv" type="number" step="0.01" placeholder="Manual" />
+ <small>manual</small>
+ </div>
+ <div class="form-row">
+ <label>STH‑SOPR</label>
+ <input id="sthSopr" type="number" step="0.001" placeholder="Manual" />
+ <small>manual</small>
+ </div>
+ <div class="form-row">
+ <label>Funding Rate</label>
+ <input id="funding" type="number" step="0.1" placeholder="Manual" />
+ <small>%/yr</small>
+ </div>
+ <div class="form-row">
+ <label>NUPL</label>
+ <input id="nupl" type="number" step="0.01" placeholder="Manual" />
+ <small>%</small>
+ </div>
+ <div class="form-row">
+ <label>Puell Multiple</label>
+ <input id="puell" type="number" step="0.01" placeholder="Manual" />
+ <small>value</small>
+ </div>
+ <div class="form-row">
+ <label>ETF Flows (M USD)</label>
+ <input id="etfFlows" type="number" step="10" placeholder="Manual" />
+ <small>daily</small>
+ </div>
+ <div class="form-row">
+ <label>Futures OI (B USD)</label>
+ <input id="oiBillions" type="number" step="0.1" placeholder="Manual" />
+ <small>notional</small>
+ </div>
+ <div class="form-row">
+ <label>BTC Market Cap (T USD)</label>
+ <input id="mktCapTrillions" type="number" step="0.01" placeholder="Auto-fill" />
+ <small>from Coingecko</small>
+ </div>
+ <div class="form-row">
+ <label>DXY Monthly Change</label>
+ <input id="dxy1m" type="number" step="0.1" placeholder="Manual" />
+ <small>%</small>
+ </div>
+
+ <div class="section-divider"></div>
+
+ <div id="result" style="margin-top: 12px;"></div>
+ </div>
+ </div>
+
+ <!-- Right Column: History -->
+ <div>
+ <div class="card">
+ <div style="display: flex; justify-content: space-between; align-items: center;">
+ <h2>3. History Log</h2>
+ <div class="button-row">
+ <button class="secondary" onclick="exportCSV()">📥 Export CSV</button>
+ <button class="secondary" onclick="clearHistory()">🗑️ Clear History</button>
+ </div>
+ </div>
+ <p class="side-note">Your evaluation history is stored locally in your browser. Export regularly to back up!</p>
+
+ <div style="max-height: 600px; overflow-y: auto; margin-top: 8px;">
+ <table class="history-table" id="historyTable">
+ <thead>
+ <tr>
+ <th>Date</th>
+ <th>Regime</th>
+ <th>Price</th>
+ <th>Price/MA</th>
+ <th>MVRV-Z</th>
+ <th>NUPL</th>
+ <th>Notes</th>
+ </tr>
+ </thead>
+ <tbody id="historyBody">
+ <tr><td colspan="7" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="card" style="margin-top: 16px;">
+ <h2>4. Today's Summary</h2>
+ <div id="summaryBox" style="padding: 12px; background: #f9fafb; border-radius: 8px;">
+ <p style="margin: 0; color: #6b7280;">Click "Evaluate Regime" to see today's summary.</p>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <script>
+ // === HISTORY MANAGEMENT ===
+ const HISTORY_KEY = 'btcHelperHistory';
+
+ function getHistory() {
+ const saved = localStorage.getItem(HISTORY_KEY);
+ return saved ? JSON.parse(saved) : [];
+ }
+
+ function saveHistory(history) {
+ localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+ renderHistory();
+ }
+
+ function renderHistory() {
+ const history = getHistory();
+ const tbody = document.getElementById('historyBody');
+
+ if (history.length === 0) {
+ tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>';
+ return;
+ }
+
+ // Sort by date descending
+ history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+ tbody.innerHTML = history.slice(0, 100).map(entry => `
+ <tr>
+ <td>${new Date(entry.date).toLocaleDateString()}</td>
+ <td><span class="mode-badge mode-${entry.regime}">${entry.regime}</span></td>
+ <td>${entry.price ? '$' + entry.price.toLocaleString() : '-'}</td>
+ <td>${entry.priceMaRatio ? entry.priceMaRatio.toFixed(2) + 'x' : '-'}</td>
+ <td>${entry.mvrvZ !== null && entry.mvrvZ !== undefined ? entry.mvrvZ.toFixed(2) : '-'}</td>
+ <td>${entry.nupl !== null && entry.nupl !== undefined ? (entry.nupl * 100).toFixed(1) + '%' : '-'}</td>
+ <td>${entry.notes || '-'}</td>
+ </tr>
+ `).join('');
+ }
+
+ function saveEvaluation() {
+ const price = parseFloat(document.getElementById('price').value);
+ const ma200 = parseFloat(document.getElementById('ma200').value);
+ const mvrvZ = parseFloat(document.getElementById('mvrvZ').value);
+ const nupl = parseFloat(document.getElementById('nupl').value);
+
+ const regime = getCurrentRegime();
+ const priceMaRatio = (price && ma200) ? price / ma200 : null;
+
+ const entry = {
+ date: new Date().toISOString(),
+ regime: regime,
+ price: price || null,
+ priceMaRatio: priceMaRatio,
+ mvrvZ: isNaN(mvrvZ) ? null : mvrvZ,
+ nupl: isNaN(nupl) ? null : nupl,
+ notes: ''
+ };
+
+ const history = getHistory();
+ history.push(entry);
+ saveHistory(history);
+
+ updateStatus(`Saved ${new Date().toLocaleDateString()} - ${regime.toUpperCase()}`, 'success');
+ }
+
+ function clearHistory() {
+ if (confirm('Clear all history? This cannot be undone.')) {
+ localStorage.removeItem(HISTORY_KEY);
+ renderHistory();
+ updateStatus('History cleared', 'success');
+ }
+ }
+
+ function exportCSV() {
+ const history = getHistory();
+ if (history.length === 0) {
+ alert('No history to export');
+ return;
+ }
+
+ const headers = ['Date', 'Regime', 'Price', 'Price/MA Ratio', 'MVRV-Z', 'NUPL'];
+ const rows = history.map(e => [
+ new Date(e.date).toLocaleDateString(),
+ e.regime,
+ e.price || '',
+ e.priceMaRatio?.toFixed(4) || '',
+ e.mvrvZ || '',
+ e.nupl || ''
+ ]);
+
+ const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+ const blob = new Blob([csv], { type: 'text/csv' });
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement('a');
+ a.href = url;
+ a.download = `btc-helper-history-${new Date().toISOString().split('T')[0]}.csv`;
+ a.click();
+ URL.revokeObjectURL(url);
+ updateStatus('CSV exported!', 'success');
+ }
+
+ // === DATA PERSISTENCE ===
+ function saveCurrentData() {
+ const data = {
+ price: document.getElementById('price').value,
+ ma200: document.getElementById('ma200').value,
+ realizedPrice: document.getElementById('realizedPrice').value,
+ mvrvZ: document.getElementById('mvrvZ').value,
+ sthMvrv: document.getElementById('sthMvrv').value,
+ sthSopr: document.getElementById('sthSopr').value,
+ funding: document.getElementById('funding').value,
+ nupl: document.getElementById('nupl').value,
+ puell: document.getElementById('puell').value,
+ etfFlows: document.getElementById('etfFlows').value,
+ oiBillions: document.getElementById('oiBillions').value,
+ mktCapTrillions: document.getElementById('mktCapTrillions').value,
+ dxy1m: document.getElementById('dxy1m').value,
+ timestamp: new Date().toISOString()
+ };
+ localStorage.setItem('btcHelperData', JSON.stringify(data));
+ }
+
+ function loadSavedData() {
+ const saved = localStorage.getItem('btcHelperData');
+ if (saved) {
+ const data = JSON.parse(saved);
+ Object.keys(data).forEach(key => {
+ if (key !== 'timestamp') {
+ const el = document.getElementById(key);
+ if (el) el.value = data[key];
+ }
+ });
+ }
+ }
+
+ function updateStatus(msg, type) {
+ const statusEl = document.getElementById('statusBar');
+ statusEl.innerHTML = `<span class="status ${type || 'status'}">${msg}</span>`;
+ }
+
+ // === API CALLS ===
+ async function fetchCoingecko() {
+ updateStatus('Fetching price & market cap...', 'loading');
+ try {
+ const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_market_cap=true', {
+ headers: { 'User-Agent': 'BTC-Helper-Bot/1.0' }
+ });
+ const data = await response.json();
+ document.getElementById('price').value = Math.round(data.bitcoin.usd);
+ document.getElementById('mktCapTrillions').value = (data.bitcoin.usd_market_cap / 1e12).toFixed(2);
+ updateStatus('✓ Price, Market Cap loaded', 'success');
+ return data.bitcoin;
+ } catch (error) {
+ updateStatus('⚠ Coingecko error - enter manually', 'warning');
+ return null;
+ }
+ }
+
+ async function fetch200DayMA(price) {
+ if (!price) return null;
+ updateStatus('Calculating 200-day MA...', 'loading');
+ try {
+ const end = Math.floor(Date.now() / 1000);
+ const start = end - (250 * 24 * 60 * 60);
+ const response = await fetch(
+ `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${start}&to=${end}`,
+ { headers: { 'User-Agent': 'BTC-Helper-Bot/1.0' } }
+ );
+ const data = await response.json();
+ const prices = data.prices;
+ if (prices.length >= 200) {
+ const last200 = prices.slice(-200);
+ const sum = last200.reduce((acc, p) => acc + p[1], 0);
+ const ma200 = sum / 200;
+ document.getElementById('ma200').value = Math.round(ma200);
+ updateStatus('✓ 200-day MA calculated', 'success');
+ return ma200;
+ }
+ } catch (error) {
+ updateStatus('⚠ Could not calculate MA', 'warning');
+ return null;
+ }
+ }
+
+ async function autoFillData() {
+ updateStatus('Auto-filling...', 'auto-filling');
+ const priceData = await fetchCoingecko();
+ await fetch200DayMA(priceData?.usd);
+ saveCurrentData();
+ }
+
+ // === EVALUATION LOGIC ===
+ function safeNum(id) {
+ const v = parseFloat(document.getElementById(id).value);
+ return isFinite(v) ? v : null;
+ }
+
+ let currentRegime = 'normal';
+
+ function getCurrentRegime() { return currentRegime; }
+
+ function evaluateRegime() {
+ const price = safeNum('price');
+ const realized = safeNum('realizedPrice');
+ const ma200 = safeNum('ma200');
+ const mvrvZ = safeNum('mvrvZ');
+ const sthMvrv = safeNum('sthMvrv');
+ const sthSopr = safeNum('sthSopr');
+ const funding = safeNum('funding');
+ const nupl = safeNum('nupl');
+ const puell = safeNum('puell');
+ const etfFlows = safeNum('etfFlows');
+ const oiB = safeNum('oiBillions');
+ const mktCapT = safeNum('mktCapTrillions');
+ const dxy1m = safeNum('dxy1m');
+
+ let oiPct = (oiB && mktCapT) ? oiB / (mktCapT * 10) : null;
+
+ // Thresholds
+ const cheap = { mvrvZ: 0, nupl: 0.25, sthMvrv: 1.0, puell: 0.5 };
+ const hotMVRV = { warm: 3.5, top: 7.0 };
+ const hotNUPL = { warm: 0.5, top: 0.75 };
+ const hotSTH = { sthMvrv: 1.5 };
+ const leverage = { oiPctRich: 0.025, oiPctExtreme: 0.04, fundingGoodLow: -5, fundingGoodHigh: 15, fundingExtreme: 30 };
+ const priceBand = { farAboveRealized: 2.5, farAboveMA200: 2.4 };
+ const macro = { dxySupportive: -2.0, dxyHeadwind: 2.0 };
+
+ const priceBelowRealized = price && realized && price <= realized;
+ const priceBelowMA = price && ma200 && price <= ma200;
+ const priceFarAboveBands = price && realized && ma200 &&
+ (price >= realized * priceBand.farAboveRealized || price >= ma200 * priceBand.farAboveMA200);
+
+ let cheapScore = 0, hotScore = 0, leverageScore = 0;
+
+ if (mvrvZ != null) {
+ if (mvrvZ <= cheap.mvrvZ) cheapScore++;
+ if (mvrvZ >= hotMVRV.warm) hotScore++;
+ if (mvrvZ >= hotMVRV.top) hotScore++;
+ }
+ if (nupl != null) {
+ if (nupl <= cheap.nupl) cheapScore++;
+ if (nupl >= hotNUPL.warm) hotScore++;
+ if (nupl >= hotNUPL.top) hotScore++;
+ }
+ if (sthMvrv != null) {
+ if (sthMvrv < cheap.sthMvrv) cheapScore++;
+ if (sthMvrv > hotSTH.sthMvrv) hotScore++;
+ }
+ if (puell != null) {
+ if (puell < cheap.puell) cheapScore++;
+ if (puell >= 4) hotScore++;
+ if (puell >= 5) hotScore++;
+ }
+ if (oiPct != null) {
+ if (oiPct > leverage.oiPctRich) leverageScore++;
+ if (oiPct > leverage.oiPctExtreme) leverageScore++;
+ }
+ if (funding != null) {
+ if (funding > leverage.fundingGoodHigh) leverageScore++;
+ if (funding > leverage.fundingExtreme) leverageScore++;
+ }
+
+ let soprCheap = false, soprHot = false;
+ if (sthSopr != null) {
+ if (sthSopr < 0.98) { soprCheap = true; cheapScore++; }
+ else if (sthSopr > 1.05) { soprHot = true; hotScore++; }
+ }
+
+ let flowSupport = false, flowCaution = false;
+ if (etfFlows != null) {
+ if (etfFlows >= 200) flowSupport = true;
+ else if (etfFlows < 0) flowCaution = true;
+ }
+
+ let macroSupport = false, macroHeadwind = false;
+ if (dxy1m != null) {
+ if (dxy1m <= macro.dxySupportive) { macroSupport = true; cheapScore++; }
+ else if (dxy1m >= macro.dxyHeadwind) { macroHeadwind = true; hotScore++; }
+ }
+
+ const strongCheap = cheapScore >= 3 || (cheapScore >= 2 && soprCheap);
+ const warmHot = hotScore >= 2;
+ const strongHot = hotScore >= 4;
+ const leveraged = leverageScore >= 1;
+ const veryLeveraged = leverageScore >= 2;
+
+ let mode = 'normal', modeTitle = 'Normal stacking (mid-cycle / recovery)';
+
+ if (strongCheap && (priceBelowRealized || priceBelowMA || macroSupport || flowSupport)) {
+ mode = 'aggressive';
+ modeTitle = 'Aggressive stacking (deep value zone)';
+ } else if ((strongHot && leveraged && (priceFarAboveBands || macroHeadwind || flowCaution)) ||
+ (warmHot && veryLeveraged && (priceFarAboveBands || macroHeadwind))) {
+ mode = 'pause';
+ modeTitle = 'Pause / lighten (euphoria / leverage risk)';
+ } else if (warmHot && (leveraged || priceFarAboveBands || macroHeadwind)) {
+ mode = 'cautious';
+ modeTitle = 'Cautious stacking (overheating risk)';
+ }
+
+ currentRegime = mode;
+
+ // Build result display
+ const priceMaRatio = (price && ma200) ? (price / ma200).toFixed(3) + 'x' : '-';
+ const resultEl = document.getElementById('result');
+ resultEl.innerHTML = `
+ <div><span class="result-pill ${mode}">${mode.toUpperCase()}</span> <strong>${modeTitle}</strong></div>
+ <div style="margin-top: 8px; font-size: 0.8rem; color: #6b7280;">
+ Price: $${price?.toLocaleString() || '?'} | 200-MA: $${ma200?.toLocaleString() || '?'} | Ratio: ${priceMaRatio}
+ </div>
+ `;
+
+ // Update summary box
+ const summaryEl = document.getElementById('summaryBox');
+ summaryEl.innerHTML = `
+ <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+ <strong>Today's Regime:</strong>
+ <span class="mode-badge mode-${mode}">${mode.toUpperCase()}</span>
+ </div>
+ <div style="font-size: 0.85rem; line-height: 1.6;">
+ ${mode === 'aggressive' ? '💡 Consider increasing accumulation - deep value signals present.' :
+ mode === 'cautious' ? '⚠️ Be selective with entries - warmth in markets.' :
+ mode === 'pause' ? '⏸️ Consider pausing new buys - elevated risk.' :
+ '✅ Maintain your baseline DCA - mixed signals.'}
+ </div>
+ `;
+
+ saveCurrentData();
+ }
+
+ // Initialize
+ window.onload = function() {
+ loadSavedData();
+ renderHistory();
+ };
+ </script>
+ </body>
+ </html>
