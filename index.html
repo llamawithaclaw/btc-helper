@@ -1099,7 +1099,25 @@
  }
 
  // === MODULE 7: TEST HARNESS ===
- const GOLDEN_DATASET = [
+const GOLDEN_DATASET = [
+ {
+ date: '2018-12-15',
+ price: 3122,
+ ma200: 6000,
+ realizedPrice: 4000,
+ mvrvZ: -1.6,
+ sthMvrv: 0.8,
+ sthSopr: 0.93,
+ funding: -30,
+ nupl: -0.42,
+ puell: 0.30,
+ etfFlows: null,
+ oiBillions: 12,
+ mktCapTrillions: 0.055,
+ dxy1m: 2.0,
+ expectedRegime: 'aggressive',
+ notes: 'Dec 2018 bear low'
+ },
  {
  date: '2020-03-12',
  price: 4100,
@@ -1135,6 +1153,24 @@
  dxy1m: -1.0,
  expectedRegime: 'pause',
  notes: 'ATH euphoria'
+ },
+ {
+ date: '2021-11-08',
+ price: 67666,
+ ma200: 50000,
+ realizedPrice: 25000,
+ mvrvZ: 8.0,
+ sthMvrv: 2.2,
+ sthSopr: 1.15,
+ funding: 20,
+ nupl: 0.9,
+ puell: 2.0,
+ etfFlows: null,
+ oiBillions: 40,
+ mktCapTrillions: 1.28,
+ dxy1m: -0.5,
+ expectedRegime: 'pause',
+ notes: 'Nov 2021 peak'
  },
  {
  date: '2022-11-21',
