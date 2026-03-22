@@ -242,40 +242,67 @@
  <button class="secondary" onclick="showGoldenDataset()">📋 Show Golden Dataset</button>
  <button class="secondary" onclick="analyzeReturns()">📈 Return Analysis</button>
  </div>
+ <div style="margin-top: 12px; padding: 10px; background: #f9fafb; border-radius: 6px;">
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+   <label style="font-size: 0.8rem;">Test Custom Date:</label>
+   <input type="date" id="customTestDate" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+   <input type="number" id="customTestPrice" placeholder="Price" style="width: 90px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+   <input type="number" id="customTestMVRVZ" placeholder="MVRV-Z" step="0.01" style="width: 80px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+   <button class="secondary" onclick="testCustomDate()" style="padding: 4px 10px;">Test Date</button>
+  </div>
+  <div style="margin-top: 6px; font-size: 0.7rem; color: var(--text-muted);">
+   Tip: Use with Metric Sources panel above to find current values
+  </div>
+ </div>
  <div id="testResults" style="margin-top: 8px; font-size: 0.85rem;"></div>
  </div>
 
  <div class="card" style="margin-top: 16px;">
  <h2>6. Metric Sources</h2>
- <p style="font-size: 0.85rem; margin-bottom: 12px;">Click links to check current metrics:</p>
- <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+ <p style="font-size: 0.85rem; margin-bottom: 12px;">Official sources for each metric:</p>
+ <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.78rem;">
   <div>
    <strong>Price & Market Cap</strong><br>
-   <a href="https://www.coingecko.com/en/coins/bitcoin" target="_blank">CoinGecko BTC →</a><br>
-   <a href="https://metrics.coinglass.com/" target="_blank">CoinGlass →</a>
+   <a href="https://docs.coinmetrics.io/api/v4" target="_blank">Coin Metrics API →</a><br>
+   <a href="https://github.com/coinmetrics/data" target="_blank">Historical CSV →</a>
   </div>
   <div>
-   <strong>On-Chain Metrics</strong><br>
+   <strong>Realized Cap / Price</strong><br>
+   <a href="https://gitbook-docs.coinmetrics.io/network-data/network-data-overview/market/market-capitalization" target="_blank">Coin Metrics →</a><br>
+   <a href="https://studio.glassnode.com/metrics?a=BTC&m=Price.RealizedPrice" target="_blank">Glassnode →</a>
+  </div>
+  <div>
+   <strong>On-Chain Valuation</strong><br>
    <a href="https://studio.glassnode.com/metrics?a=BTC&m=Mvrv.MvrvZ" target="_blank">MVRV-Z →</a><br>
    <a href="https://studio.glassnode.com/metrics?a=BTC&m=Supply.ProfitRelative" target="_blank">NUPL →</a>
   </div>
   <div>
    <strong>Miner Economics</strong><br>
+   <a href="https://gitbook-docs.coinmetrics.io/network-data/network-data-overview/supply/miner-revenue" target="_blank">Miner Revenue →</a><br>
    <a href="https://studio.glassnode.com/metrics?a=BTC&m=Miner.PuellMultiple" target="_blank">Puell Multiple →</a>
   </div>
   <div>
+   <strong>STH Metrics</strong><br>
+   <a href="https://studio.glassnode.com/metrics?a=BTC&m=Supply.ProfitRelative" target="_blank">Glassnode Cohorts →</a>
+  </div>
+  <div>
    <strong>Derivatives</strong><br>
-   <a href="https://www.binance.com/en/futures/funding-history" target="_blank">Binance Funding →</a><br>
-   <a href="https://www.binance.com/en/futures/funding-history" target="_blank">Open Interest →</a>
+   <a href="https://www.binance.com/en/futures" target="_blank">Binance Futures →</a><br>
+   <small>Funding rate & Open Interest</small>
   </div>
   <div>
    <strong>ETF Flows</strong><br>
-   <a href="https://farside.co.uk/btc/" target="_blank">US Spot ETF Flows →</a>
+   <a href="https://gitbook-docs.coinmetrics.io/network-data/network-data-overview/exchange-traded-fund/net-flows" target="_blank">Coin Metrics ETF →</a><br>
+   <a href="https://farside.co.uk/btc/" target="_blank">Farside UK →</a>
   </div>
   <div>
-   <strong>Macro</strong><br>
-   <a href="https://fred.stlouisfed.org/series/TWEXBGSMTH" target="_blank">DXY (FRED) →</a>
+   <strong>Macro (DXY)</strong><br>
+   <a href="https://fred.stlouisfed.org/series/TWEXBGSMTH" target="_blank">FRED TWEXBGSMTH →</a>
   </div>
+ </div>
+ <div style="margin-top: 12px; font-size: 0.75rem; color: var(--text-muted);">
+  <strong>Primary API:</strong> <a href="https://docs.coinmetrics.io/api/v4" target="_blank">Coin Metrics API v4</a> — single source for most metrics<br>
+  <strong>Community Data:</strong> <a href="https://gitbook-docs.coinmetrics.io/packages/coin-metrics-community-data" target="_blank">Free tier access</a> — rate limited, requires caching
  </div>
  </div>
  </div>
@@ -1298,14 +1325,57 @@ const GOLDEN_DATASET = [
 
  function showGoldenDataset() {
  const testEl = document.getElementById('testResults');
- let html = '<div><strong>Golden Dataset:</strong></div>';
+ let html = '<div><strong>Golden Dataset:</strong> Historical test cases</div>';
  html += '<div style="margin-top: 8px; font-size: 0.8rem;">';
  GOLDEN_DATASET.forEach(test => {
  html += `<div><strong>${test.date}</strong> - ${test.notes}<br>`;
- html += `Price: $${test.price.toLocaleString()}, MVRV-Z: ${test.mvrvZ}, NUPL: ${(test.nupl * 100).toFixed(0)}%, Expected: ${test.expectedRegime}</div><br>`;
+ html += `Price: $${test.price.toLocaleString()}, MVRV-Z: ${test.mvrvZ.toFixed(2)}, NUPL: ${(test.nupl * 100).toFixed(0)}%, Expected: ${test.expectedRegime}</div><br>`;
  });
  html += '</div>';
  testEl.innerHTML = html;
+ }
+
+ function testCustomDate() {
+ const date = document.getElementById('customTestDate').value;
+ const price = parseFloat(document.getElementById('customTestPrice').value);
+ const mvrvZ = parseFloat(document.getElementById('customTestMVRVZ').value);
+ 
+ if (!date || isNaN(price) || isNaN(mvrvZ)) {
+  document.getElementById('testResults').innerHTML = '<div style="color: var(--error);">Please enter date, price, and MVRV-Z</div>';
+  return;
+ }
+ 
+ // Use current estimated values for other metrics, or prompt user
+ const inputs = {
+  price: price,
+  ma200: price * 1.2, // Estimate MA200 at 20% above price
+  realizedPrice: price / (1 + mvrvZ), // Inverse of MVRV formula
+  mvrvZ: mvrvZ,
+  sthMvrv: Math.max(0.8, Math.min(2.5, mvrvZ * 0.5)), // Estimate STH-MVRV
+  sthSopr: mvrvZ > 2 ? 1.1 : 1.0, // Estimate SOPR based on MVRV
+  funding: 10, // Default estimate
+  nupl: Math.max(-0.5, Math.min(0.9, mvrvZ / 10)), // Estimate NUPL
+  puell: 1.5, // Default estimate
+  etfFlows: null,
+  oiBillions: 15,
+  mktCapTrillions: (price * 19700000) / 1e12, // Price × supply
+  dxy1m: 0,
+  timestamp: new Date().toISOString()
+ };
+ 
+ const result = compute_regime(inputs);
+ 
+ const testEl = document.getElementById('testResults');
+ let html = `<div><strong>Test for ${date}:</strong></div>`;
+ html += `<div style="margin-top: 8px;">`;
+ html += `<div>Price: $${price.toLocaleString()}, MVRV-Z: ${mvrvZ.toFixed(2)}</div>`;
+ html += `<div style="margin-top: 6px;"><strong>Result:</strong> <span class="mode-badge mode-${result.call}">${result.call.toUpperCase()}</span></div>`;
+ html += `<div style="margin-top: 6px; font-size: 0.8rem; color: var(--text-muted);">`;
+ html += `<em>Note: This uses estimated values for non-input metrics. For accurate testing, enter all metrics manually in the form and click "Save Entry" then "Return Analysis".</em>`;
+ html += `</div>`;
+ html += `</div>`;
+ testEl.innerHTML = html;
+ updateStatus('Custom date test complete', 'success');
  }
 
  // === RETURN ANALYSIS ===
