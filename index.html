@@ -244,6 +244,40 @@
  </div>
  <div id="testResults" style="margin-top: 8px; font-size: 0.85rem;"></div>
  </div>
+
+ <div class="card" style="margin-top: 16px;">
+ <h2>6. Metric Sources</h2>
+ <p style="font-size: 0.85rem; margin-bottom: 12px;">Click links to check current metrics:</p>
+ <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+  <div>
+   <strong>Price & Market Cap</strong><br>
+   <a href="https://www.coingecko.com/en/coins/bitcoin" target="_blank">CoinGecko BTC →</a><br>
+   <a href="https://metrics.coinglass.com/" target="_blank">CoinGlass →</a>
+  </div>
+  <div>
+   <strong>On-Chain Metrics</strong><br>
+   <a href="https://studio.glassnode.com/metrics?a=BTC&m=Mvrv.MvrvZ" target="_blank">MVRV-Z →</a><br>
+   <a href="https://studio.glassnode.com/metrics?a=BTC&m=Supply.ProfitRelative" target="_blank">NUPL →</a>
+  </div>
+  <div>
+   <strong>Miner Economics</strong><br>
+   <a href="https://studio.glassnode.com/metrics?a=BTC&m=Miner.PuellMultiple" target="_blank">Puell Multiple →</a>
+  </div>
+  <div>
+   <strong>Derivatives</strong><br>
+   <a href="https://www.binance.com/en/futures/funding-history" target="_blank">Binance Funding →</a><br>
+   <a href="https://www.binance.com/en/futures/funding-history" target="_blank">Open Interest →</a>
+  </div>
+  <div>
+   <strong>ETF Flows</strong><br>
+   <a href="https://farside.co.uk/btc/" target="_blank">US Spot ETF Flows →</a>
+  </div>
+  <div>
+   <strong>Macro</strong><br>
+   <a href="https://fred.stlouisfed.org/series/TWEXBGSMTH" target="_blank">DXY (FRED) →</a>
+  </div>
+ </div>
+ </div>
  </div>
  </div>
  </div>
@@ -1205,8 +1239,8 @@ const GOLDEN_DATASET = [
  oiBillions: 25,
  mktCapTrillions: 1.44,
  dxy1m: -0.5,
- expectedRegime: 'cautious',
- notes: 'ETF inflow euphoria'
+ expectedRegime: 'pause',
+ notes: 'ETF inflow euphoria + high leverage'
  }
  ];
 
