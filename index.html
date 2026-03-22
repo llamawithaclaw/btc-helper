@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
  <meta charset="UTF-8" />
- <title>BTC Helper - Phase 2 (Historical Tracking)</title>
+ <title>BTC Helper - Phase 2 (Refactored)</title>
  <meta name="viewport" content="width=device-width, initial-scale=1" />
  <style>
  :root {
@@ -16,6 +16,9 @@
  --accent-pause: #b91c1c;
  --border: #e5e7eb;
  --input-bg: #f9fafb;
+ --error: #dc2626;
+ --warning: #f59e0b;
+ --success: #059669;
  }
  * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text-main); }
@@ -40,6 +43,8 @@
  .form-row label { font-size: 0.8rem; color: var(--text-muted); }
  .form-row input { width: 100%; padding: 5px 6px; border-radius: 6px; border: 1px solid #d1d5db; background: var(--input-bg); font-size: 0.85rem; }
  .form-row small { font-size: 0.7rem; color: var(--text-muted); }
+ .form-row .error { font-size: 0.7rem; color: var(--error); margin-top: 2px; }
+ .form-row .warning { font-size: 0.7rem; color: var(--warning); margin-top: 2px; }
  .section-divider { height: 1px; background: var(--border); margin: 10px 0; }
  .result-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; color: white; }
  .result-pill.aggressive { background: var(--accent-aggressive); }
@@ -50,6 +55,7 @@
  .badge.good { background: rgba(16, 185, 129, 0.1); color: #047857; }
  .badge.caution { background: rgba(245, 158, 11, 0.1); color: #b45309; }
  .badge.risk { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
+ .badge.stale { background: rgba(107, 114, 128, 0.1); color: #4b5563; }
  .status-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
  .status { font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; }
  .status.success { background: rgba(16, 185, 129, 0.15); color: #047857; }
@@ -65,13 +71,20 @@
  .mode-normal { background: var(--accent-normal); }
  .mode-cautious { background: var(--accent-cautious); }
  .mode-pause { background: var(--accent-pause); }
+ .explain-box { background: #f9fafb; border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 0.85rem; line-height: 1.5; }
+ .explain-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+ .explain-metric { display: flex; align-items: center; gap: 6px; }
+ .score-breakdown { display: flex; gap: 12px; margin-top: 8px; }
+ .score-item { flex: 1; background: white; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+ .score-item h4 { margin: 0 0 4px; font-size: 0.75rem; color: var(--text-muted); }
+ .score-item .value { font-size: 1rem; font-weight: 600; }
  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
  </style>
 </head>
 <body>
  <div class="container">
- <h1>BTC Helper - Phase 2 (Historical Tracking)</h1>
- <p>Auto-fill metrics, evaluate regime, and track history over time.</p>
+ <h1>BTC Helper - Phase 2 (Refactored)</h1>
+ <p>Improved signal engine with validation, explainability, and persistence rules.</p>
 
  <div class="grid">
  <!-- Left Column: Input & Evaluation -->
@@ -94,76 +107,90 @@
  <!-- Price/MA section -->
  <div class="form-row">
  <label>Spot Price</label>
- <input id="price" type="number" step="1" placeholder="Auto-fill" />
+ <input id="price" type="number" step="1" placeholder="Auto-fill" onchange="validateField('price')" />
  <small>USD</small>
+ <div id="price-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>200-Day MA</label>
- <input id="ma200" type="number" step="1" placeholder="Auto-calculated" />
+ <input id="ma200" type="number" step="1" placeholder="Auto-calculated" onchange="validateField('ma200')" />
  <small>USD</small>
+ <div id="ma200-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>Realized Price</label>
- <input id="realizedPrice" type="number" step="1" placeholder="Manual" />
+ <input id="realizedPrice" type="number" step="1" placeholder="Manual" onchange="validateField('realizedPrice')" />
  <small>USD</small>
+ <div id="realizedPrice-error" class="error"></div>
  </div>
 
  <div class="section-divider"></div>
 
  <div class="form-row">
  <label>MVRV‑Z</label>
- <input id="mvrvZ" type="number" step="0.01" placeholder="Manual" />
+ <input id="mvrvZ" type="number" step="0.01" placeholder="Manual" onchange="validateField('mvrvZ')" />
  <small>manual</small>
+ <div id="mvrvZ-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>STH‑MVRV</label>
- <input id="sthMvrv" type="number" step="0.01" placeholder="Manual" />
+ <input id="sthMvrv" type="number" step="0.01" placeholder="Manual" onchange="validateField('sthMvrv')" />
  <small>manual</small>
+ <div id="sthMvrv-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>STH‑SOPR</label>
- <input id="sthSopr" type="number" step="0.001" placeholder="Manual" />
+ <input id="sthSopr" type="number" step="0.001" placeholder="Manual" onchange="validateField('sthSopr')" />
  <small>manual</small>
+ <div id="sthSopr-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>Funding Rate</label>
- <input id="funding" type="number" step="0.1" placeholder="Manual" />
+ <input id="funding" type="number" step="0.1" placeholder="Manual" onchange="validateField('funding')" />
  <small>%/yr</small>
+ <div id="funding-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>NUPL</label>
- <input id="nupl" type="number" step="0.01" placeholder="Manual" />
+ <input id="nupl" type="number" step="0.01" placeholder="Manual" onchange="validateField('nupl')" />
  <small>%</small>
+ <div id="nupl-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>Puell Multiple</label>
- <input id="puell" type="number" step="0.01" placeholder="Manual" />
+ <input id="puell" type="number" step="0.01" placeholder="Manual" onchange="validateField('puell')" />
  <small>value</small>
+ <div id="puell-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>ETF Flows (M USD)</label>
- <input id="etfFlows" type="number" step="10" placeholder="Manual" />
+ <input id="etfFlows" type="number" step="10" placeholder="Manual" onchange="validateField('etfFlows')" />
  <small>daily</small>
+ <div id="etfFlows-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>Futures OI (B USD)</label>
- <input id="oiBillions" type="number" step="0.1" placeholder="Manual" />
+ <input id="oiBillions" type="number" step="0.1" placeholder="Manual" onchange="validateField('oiBillions')" />
  <small>notional</small>
+ <div id="oiBillions-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>BTC Market Cap (T USD)</label>
- <input id="mktCapTrillions" type="number" step="0.01" placeholder="Auto-fill" />
+ <input id="mktCapTrillions" type="number" step="0.01" placeholder="Auto-fill" onchange="validateField('mktCapTrillions')" />
  <small>from Coingecko</small>
+ <div id="mktCapTrillions-error" class="error"></div>
  </div>
  <div class="form-row">
  <label>DXY Monthly Change</label>
- <input id="dxy1m" type="number" step="0.1" placeholder="Manual" />
+ <input id="dxy1m" type="number" step="0.1" placeholder="Manual" onchange="validateField('dxy1m')" />
  <small>%</small>
+ <div id="dxy1m-error" class="error"></div>
  </div>
 
  <div class="section-divider"></div>
 
  <div id="result" style="margin-top: 12px;"></div>
+ <div id="explainBox" class="explain-box" style="display: none;"></div>
  </div>
  </div>
 
@@ -185,15 +212,17 @@
  <tr>
  <th>Date</th>
  <th>Regime</th>
+ <th>Confidence</th>
  <th>Price</th>
  <th>Price/MA</th>
  <th>MVRV-Z</th>
  <th>NUPL</th>
+ <th>30d Return</th>
  <th>Notes</th>
  </tr>
  </thead>
  <tbody id="historyBody">
- <tr><td colspan="7" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>
+ <tr><td colspan="8" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>
  </tbody>
  </table>
  </div>
@@ -205,13 +234,529 @@
  <p style="margin: 0; color: #6b7280;">Click "Evaluate Regime" to see today's summary.</p>
  </div>
  </div>
+
+ <div class="card" style="margin-top: 16px;">
+ <h2>5. Test Harness</h2>
+ <div class="button-row">
+ <button class="secondary" onclick="runTests()">🧪 Run Tests</button>
+ <button class="secondary" onclick="showGoldenDataset()">📋 Show Golden Dataset</button>
+ <button class="secondary" onclick="analyzeReturns()">📈 Return Analysis</button>
+ </div>
+ <div id="testResults" style="margin-top: 8px; font-size: 0.85rem;"></div>
+ </div>
  </div>
  </div>
  </div>
 
  <script>
- // === HISTORY MANAGEMENT ===
- const HISTORY_KEY = 'btcHelperHistory';
+ // === MODULE 1: INPUT SCHEMA & VALIDATION ===
+ const INPUT_SCHEMA = {
+ price: { name: 'Spot Price', unit: 'USD', required: true, min: 1, max: 1000000, description: 'Current BTC price in USD' },
+ ma200: { name: '200-Day MA', unit: 'USD', required: true, min: 1, max: 1000000, description: '200-day moving average price' },
+ realizedPrice: { name: 'Realized Price', unit: 'USD', required: false, min: 1, max: 1000000, description: 'Realized price (coin days destroyed)' },
+ mvrvZ: { name: 'MVRV-Z', unit: 'dimensionless', required: false, min: -3, max: 10, description: 'Market Value to Realized Value Z-score' },
+ sthMvrv: { name: 'STH-MVRV', unit: 'dimensionless', required: false, min: 0, max: 10, description: 'Short-term holder MVRV' },
+ sthSopr: { name: 'STH-SOPR', unit: 'dimensionless', required: false, min: 0, max: 3, description: 'Short-term holder SOPR' },
+ funding: { name: 'Funding Rate', unit: '%/yr', required: false, min: -100, max: 100, description: 'Perpetual funding rate annualized' },
+ nupl: { name: 'NUPL', unit: '%', required: false, min: -1, max: 1, description: 'Net Unrealized Profit/Loss' },
+ puell: { name: 'Puell Multiple', unit: 'dimensionless', required: false, min: 0, max: 10, description: 'Puell Multiple (miner revenue)' },
+ etfFlows: { name: 'ETF Flows', unit: 'M USD', required: false, min: -1000, max: 1000, description: 'Daily ETF flows in millions USD' },
+ oiBillions: { name: 'Futures OI', unit: 'B USD', required: false, min: 0, max: 100, description: 'Futures open interest in billions USD' },
+ mktCapTrillions: { name: 'BTC Market Cap', unit: 'T USD', required: false, min: 0, max: 10, description: 'Bitcoin market cap in trillions USD' },
+ dxy1m: { name: 'DXY Monthly Change', unit: '%', required: false, min: -10, max: 10, description: 'US Dollar Index monthly change' },
+ timestamp: { name: 'Timestamp', unit: 'ISO', required: false, description: 'Data timestamp for freshness check' }
+ };
+
+ const MAX_AGE_MINUTES = 60 * 24; // 24 hours
+
+ function validateInput(inputs) {
+ const errors = [];
+ const warnings = [];
+ const validated = {};
+
+ for (const [key, schema] of Object.entries(INPUT_SCHEMA)) {
+ if (key === 'timestamp') {
+ // Handle timestamp separately
+ if (inputs.timestamp) {
+ const ageMs = Date.now() - new Date(inputs.timestamp).getTime();
+ const ageMinutes = ageMs / (1000 * 60);
+ if (ageMinutes > MAX_AGE_MINUTES) {
+ warnings.push(`Data is ${Math.round(ageMinutes / 60)} hours old (stale)`);
+ validated.stale = true;
+ validated.timestampAge = ageMinutes;
+ }
+ validated.timestamp = inputs.timestamp;
+ }
+ continue;
+ }
+
+ const value = inputs[key];
+ const isMissing = value === null || value === undefined || value === '';
+
+ // Check required fields
+ if (schema.required && isMissing) {
+ errors.push(`${schema.name} is required`);
+ continue;
+ }
+
+ // Skip validation for missing optional fields
+ if (isMissing) {
+ validated[key] = null;
+ continue;
+ }
+
+ // Type check
+ const num = parseFloat(value);
+ if (isNaN(num)) {
+ errors.push(`${schema.name} must be a number`);
+ continue;
+ }
+
+ // Range validation
+ if (schema.min !== undefined && num < schema.min) {
+ warnings.push(`${schema.name} is below expected minimum (${schema.min})`);
+ }
+ if (schema.max !== undefined && num > schema.max) {
+ warnings.push(`${schema.name} is above expected maximum (${schema.max})`);
+ }
+
+ // Unit-specific validation
+ if (key === 'nupl' && (num < -1 || num > 1)) {
+ errors.push(`NUPL must be between -1 and 1`);
+ }
+
+ validated[key] = num;
+ }
+
+ return { validated, errors, warnings };
+ }
+
+ function validateField(fieldId) {
+ const input = document.getElementById(fieldId);
+ const value = input.value;
+ const schema = INPUT_SCHEMA[fieldId];
+ if (!schema) return;
+
+ const num = parseFloat(value);
+ const errorEl = document.getElementById(`${fieldId}-error`);
+ let errorMsg = '';
+
+ if (schema.required && (value === '' || isNaN(num))) {
+ errorMsg = `${schema.name} is required`;
+ } else if (!isNaN(num)) {
+ if (schema.min !== undefined && num < schema.min) {
+ errorMsg = `Value below minimum (${schema.min})`;
+ }
+ if (schema.max !== undefined && num > schema.max) {
+ errorMsg = `Value above maximum (${schema.max})`;
+ }
+ }
+
+ if (errorEl) {
+ errorEl.textContent = errorMsg;
+ input.style.borderColor = errorMsg ? 'var(--error)' : '#d1d5db';
+ }
+
+ return !errorMsg;
+ }
+
+ // === MODULE 2: SIGNAL ENGINE (PURE FUNCTION) ===
+ function compute_regime(inputs) {
+ const { validated, errors, warnings } = validateInput(inputs);
+
+ if (errors.length > 0) {
+ return {
+ call: 'error',
+ confidence: 0,
+ reasons: errors,
+ warnings: warnings,
+ metrics: {}
+ };
+ }
+
+ // Extract validated metrics
+ const price = validated.price;
+ const realized = validated.realizedPrice;
+ const ma200 = validated.ma200;
+ const mvrvZ = validated.mvrvZ;
+ const sthMvrv = validated.sthMvrv;
+ const sthSopr = validated.sthSopr;
+ const funding = validated.funding;
+ const nupl = validated.nupl;
+ const puell = validated.puell;
+ const etfFlows = validated.etfFlows;
+ const oiB = validated.oiBillions;
+ const mktCapT = validated.mktCapTrillions;
+ const dxy1m = validated.dxy1m;
+ const isStale = validated.stale;
+
+ // Post-2020 calibrated thresholds
+ const THRESHOLDS = {
+ cheap: {
+ mvrvZ: 0,
+ nupl: 0.25,
+ sthMvrv: 1.0,
+ puell: 0.3, // Adjusted for post-2020 cycles (was 0.5)
+ sthSopr: 0.98
+ },
+ hot: {
+ mvrvZ: { warm: 3.5, top: 7.0 },
+ nupl: { warm: 0.5, top: 0.75 },
+ sthMvrv: 1.5,
+ puell: { warm: 2.0, top: 4.0 } // Adjusted thresholds
+ },
+ leverage: {
+ oiPctRich: 0.025,
+ oiPctExtreme: 0.04,
+ fundingGoodHigh: 15,
+ fundingExtreme: 30
+ },
+ price: {
+ farAboveRealized: 2.5,
+ farAboveMA200: 2.4
+ },
+ macro: {
+ dxySupportive: -2.0,
+ dxyHeadwind: 2.0
+ },
+ crashCapitulation: {
+ puellMax: 6.0, // Extreme capitulation level
+ nuplMin: -0.1, // Negative NUPL indicates capitulation
+ mvrvZMin: -0.5 // Deep value
+ }
+ };
+
+ // Calculate derived metrics
+ let oiPct = (oiB && mktCapT) ? oiB / (mktCapT * 10) : null;
+
+ // Price bands
+ const priceBelowRealized = price && realized && price <= realized;
+ const priceBelowMA = price && ma200 && price <= ma200;
+ const priceFarAboveBands = price && realized && ma200 &&
+ (price >= realized * THRESHOLDS.price.farAboveRealized ||
+ price >= ma200 * THRESHOLDS.price.farAboveMA200);
+
+ // Scoring system with per-metric contributions
+ let cheapScore = 0, hotScore = 0, leverageScore = 0;
+ const contributions = {
+ cheap: [],
+ hot: [],
+ leverage: []
+ };
+
+ // Metric-by-metric evaluation with contributions
+ if (mvrvZ != null) {
+ if (mvrvZ <= THRESHOLDS.cheap.mvrvZ) {
+ cheapScore++;
+ contributions.cheap.push(`MVRV-Z (${mvrvZ.toFixed(2)}) ≤ ${THRESHOLDS.cheap.mvrvZ}`);
+ }
+ if (mvrvZ >= THRESHOLDS.hot.mvrvZ.warm) {
+ hotScore++;
+ contributions.hot.push(`MVRV-Z (${mvrvZ.toFixed(2)}) ≥ ${THRESHOLDS.hot.mvrvZ.warm}`);
+ }
+ if (mvrvZ >= THRESHOLDS.hot.mvrvZ.top) {
+ hotScore++;
+ contributions.hot.push(`MVRV-Z (${mvrvZ.toFixed(2)}) ≥ ${THRESHOLDS.hot.mvrvZ.top}`);
+ }
+ }
+
+ if (nupl != null) {
+ if (nupl <= THRESHOLDS.cheap.nupl) {
+ cheapScore++;
+ contributions.cheap.push(`NUPL (${(nupl * 100).toFixed(1)}%) ≤ ${THRESHOLDS.cheap.nupl * 100}%`);
+ }
+ if (nupl >= THRESHOLDS.hot.nupl.warm) {
+ hotScore++;
+ contributions.hot.push(`NUPL (${(nupl * 100).toFixed(1)}%) ≥ ${THRESHOLDS.hot.nupl.warm * 100}%`);
+ }
+ if (nupl >= THRESHOLDS.hot.nupl.top) {
+ hotScore++;
+ contributions.hot.push(`NUPL (${(nupl * 100).toFixed(1)}%) ≥ ${THRESHOLDS.hot.nupl.top * 100}%`);
+ }
+ }
+
+ if (sthMvrv != null) {
+ if (sthMvrv < THRESHOLDS.cheap.sthMvrv) {
+ cheapScore++;
+ contributions.cheap.push(`STH-MVRV (${sthMvrv.toFixed(2)}) < ${THRESHOLDS.cheap.sthMvrv}`);
+ }
+ if (sthMvrv > THRESHOLDS.hot.sthMvrv) {
+ hotScore++;
+ contributions.hot.push(`STH-MVRV (${sthMvrv.toFixed(2)}) > ${THRESHOLDS.hot.sthMvrv}`);
+ }
+ }
+
+ if (puell != null) {
+ if (puell < THRESHOLDS.cheap.puell) {
+ cheapScore++;
+ contributions.cheap.push(`Puell (${puell.toFixed(2)}) < ${THRESHOLDS.cheap.puell}`);
+ }
+ if (puell >= THRESHOLDS.hot.puell.warm) {
+ hotScore++;
+ contributions.hot.push(`Puell (${puell.toFixed(2)}) ≥ ${THRESHOLDS.hot.puell.warm}`);
+ }
+ if (puell >= THRESHOLDS.hot.puell.top) {
+ hotScore++;
+ contributions.hot.push(`Puell (${puell.toFixed(2)}) ≥ ${THRESHOLDS.hot.puell.top}`);
+ }
+ }
+
+ // STH-SOPR evaluation
+ let soprCheap = false, soprHot = false;
+ if (sthSopr != null) {
+ if (sthSopr < THRESHOLDS.cheap.sthSopr) {
+ cheapScore++;
+ soprCheap = true;
+ contributions.cheap.push(`STH-SOPR (${sthSopr.toFixed(3)}) < ${THRESHOLDS.cheap.sthSopr}`);
+ }
+ else if (sthSopr > 1.05) {
+ hotScore++;
+ soprHot = true;
+ contributions.hot.push(`STH-SOPR (${sthSopr.toFixed(3)}) > 1.05`);
+ }
+ }
+
+ // Leverage evaluation
+ if (oiPct != null) {
+ if (oiPct > THRESHOLDS.leverage.oiPctRich) {
+ leverageScore++;
+ contributions.leverage.push(`OI/MCap (${(oiPct * 100).toFixed(2)}%) > ${THRESHOLDS.leverage.oiPctRich * 100}%`);
+ }
+ if (oiPct > THRESHOLDS.leverage.oiPctExtreme) {
+ leverageScore++;
+ contributions.leverage.push(`OI/MCap (${(oiPct * 100).toFixed(2)}%) > ${THRESHOLDS.leverage.oiPctExtreme * 100}%`);
+ }
+ }
+
+ if (funding != null) {
+ if (funding > THRESHOLDS.leverage.fundingGoodHigh) {
+ leverageScore++;
+ contributions.leverage.push(`Funding (${funding.toFixed(1)}%/yr) > ${THRESHOLDS.leverage.fundingGoodHigh}%/yr`);
+ }
+ if (funding > THRESHOLDS.leverage.fundingExtreme) {
+ leverageScore++;
+ contributions.leverage.push(`Funding (${funding.toFixed(1)}%/yr) > ${THRESHOLDS.leverage.fundingExtreme}%/yr`);
+ }
+ }
+
+ // Flow evaluation
+ let flowSupport = false, flowCaution = false;
+ if (etfFlows != null) {
+ if (etfFlows >= 200) {
+ flowSupport = true;
+ contributions.cheap.push(`ETF flows (${etfFlows.toFixed(0)}M) ≥ 200M`);
+ }
+ else if (etfFlows < 0) {
+ flowCaution = true;
+ contributions.hot.push(`ETF flows (${etfFlows.toFixed(0)}M) < 0`);
+ }
+ }
+
+ // Macro evaluation
+ let macroSupport = false, macroHeadwind = false;
+ if (dxy1m != null) {
+ if (dxy1m <= THRESHOLDS.macro.dxySupportive) {
+ macroSupport = true;
+ cheapScore++;
+ contributions.cheap.push(`DXY change (${dxy1m.toFixed(1)}%) ≤ ${THRESHOLDS.macro.dxySupportive}%`);
+ }
+ else if (dxy1m >= THRESHOLDS.macro.dxyHeadwind) {
+ macroHeadwind = true;
+ hotScore++;
+ contributions.hot.push(`DXY change (${dxy1m.toFixed(1)}%) ≥ ${THRESHOLDS.macro.dxyHeadwind}%`);
+ }
+ }
+
+ // Crash capitulation detection
+ let crashCapitulation = false;
+ if (puell != null && nupl != null && mvrvZ != null) {
+ if (puell > THRESHOLDS.crashCapitulation.puellMax &&
+ nupl < THRESHOLDS.crashCapitulation.nuplMin &&
+ mvrvZ < THRESHOLDS.crashCapitulation.mvrvZMin) {
+ crashCapitulation = true;
+ contributions.cheap.push('Crash capitulation mode detected');
+ }
+ }
+
+ // Regime logic with persistence consideration
+ const strongCheap = cheapScore >= 3 || (cheapScore >= 2 && soprCheap) || crashCapitulation;
+ const warmHot = hotScore >= 2;
+ const strongHot = hotScore >= 4;
+ const leveraged = leverageScore >= 1;
+ const veryLeveraged = leverageScore >= 2;
+
+ let mode = 'normal';
+ let modeTitle = 'Normal stacking (mid-cycle / recovery)';
+ let reasons = [];
+ let warningsList = [...warnings];
+
+ // Determine regime
+ if (strongCheap && (priceBelowRealized || priceBelowMA || macroSupport || flowSupport || crashCapitulation)) {
+ mode = 'aggressive';
+ modeTitle = 'Aggressive stacking (deep value zone)';
+ reasons.push('Multiple cheap signals present');
+ if (crashCapitulation) reasons.push('Crash capitulation detected');
+ } else if ((strongHot && leveraged && (priceFarAboveBands || macroHeadwind || flowCaution)) ||
+ (warmHot && veryLeveraged && (priceFarAboveBands || macroHeadwind))) {
+ mode = 'pause';
+ modeTitle = 'Pause / lighten (euphoria / leverage risk)';
+ reasons.push('Elevated risk with leverage');
+ } else if (warmHot && (leveraged || priceFarAboveBands || macroHeadwind)) {
+ mode = 'cautious';
+ modeTitle = 'Cautious stacking (overheating risk)';
+ reasons.push('Warmth in markets');
+ }
+
+ if (isStale) {
+ warningsList.push('Data is stale (>24 hours old)');
+ }
+
+ // Calculate confidence
+ const totalMetrics = Object.values(validated).filter(v => v !== null).length;
+ const confidence = Math.min(100, 50 + (totalMetrics * 5));
+
+ return {
+ call: mode,
+ confidence: confidence,
+ reasons: reasons,
+ warnings: warningsList,
+ metrics: {
+ cheapScore,
+ hotScore,
+ leverageScore,
+ contributions,
+ priceBelowRealized,
+ priceBelowMA,
+ priceFarAboveBands,
+ crashCapitulation,
+ isStale,
+ timestamp: inputs.timestamp,
+ timestampAge: validated.timestampAge
+ },
+ titles: { mode, modeTitle }
+ };
+ }
+
+ // === MODULE 3: UI RENDERING ===
+ function renderValidationErrors(errors) {
+ if (errors.length === 0) return '';
+
+ return `<div style="color: var(--error); margin-top: 8px;">
+ <strong>Validation Errors:</strong><br>
+ ${errors.map(e => `• ${e}`).join('<br>')}
+ </div>`;
+ }
+
+ function renderExplainBox(result) {
+ const box = document.getElementById('explainBox');
+ const { call, confidence, reasons, warnings, metrics } = result;
+
+ // Determine if data is stale
+ const isStale = metrics.isStale;
+ const staleBadge = isStale ? '<span class="badge stale">⚠ Data stale</span>' : '';
+
+ let html = `
+ <div class="explain-row">
+ <span><strong>Regime:</strong> <span class="mode-badge mode-${call}">${call.toUpperCase()}</span> ${staleBadge}</span>
+ <span><strong>Confidence:</strong> ${confidence.toFixed(0)}%</span>
+ </div>
+ `;
+
+ // Score breakdown
+ html += `
+ <div class="score-breakdown">
+ <div class="score-item">
+ <h4>Cheap Score</h4>
+ <div class="value">${metrics.cheapScore}</div>
+ </div>
+ <div class="score-item">
+ <h4>Hot Score</h4>
+ <div class="value">${metrics.hotScore}</div>
+ </div>
+ <div class="score-item">
+ <h4>Leverage Score</h4>
+ <div class="value">${metrics.leverageScore}</div>
+ </div>
+ </div>
+ `;
+
+ // Reasons
+ if (reasons.length > 0) {
+ html += `<div style="margin-top: 8px;"><strong>Why this regime:</strong><br>`;
+ reasons.forEach(r => html += `<div class="explain-metric">• ${r}</div>`);
+ html += `</div>`;
+ }
+
+ // Per-metric contributions
+ html += `<div style="margin-top: 8px;"><strong>Per-metric contributions:</strong>`;
+ if (metrics.contributions.cheap.length > 0) {
+ html += `<div style="margin-top: 4px; color: var(--success);"><strong>Cheap signals:</strong>`;
+ metrics.contributions.cheap.forEach(c => html += `<div class="explain-metric">✓ ${c}</div>`);
+ html += `</div>`;
+ }
+ if (metrics.contributions.hot.length > 0) {
+ html += `<div style="margin-top: 4px; color: var(--error);"><strong>Hot signals:</strong>`;
+ metrics.contributions.hot.forEach(c => html += `<div class="explain-metric">⚠ ${c}</div>`);
+ html += `</div>`;
+ }
+ if (metrics.contributions.leverage.length > 0) {
+ html += `<div style="margin-top: 4px; color: var(--warning);"><strong>Leverage signals:</strong>`;
+ metrics.contributions.leverage.forEach(c => html += `<div class="explain-metric">⚠ ${c}</div>`);
+ html += `</div>`;
+ }
+ html += `</div>`;
+
+ // Warnings
+ if (warnings.length > 0) {
+ html += `<div style="margin-top: 8px;"><strong>Warnings:</strong>`;
+ warnings.forEach(w => html += `<div class="explain-metric" style="color: var(--warning);">• ${w}</div>`);
+ html += `</div>`;
+ }
+
+ // Data freshness badge
+ if (metrics.isStale) {
+ const ageText = metrics.timestampAge ? 
+ `Data is ${Math.round(metrics.timestampAge / 60)} hours old` : 
+ 'Data is stale (>24h old)';
+ html += `<div style="margin-top: 8px;"><span class="badge stale">⚠ ${ageText}</span></div>`;
+ }
+
+ // Show timestamp if available
+ if (metrics.timestamp) {
+ const timestampDate = new Date(metrics.timestamp);
+ html += `<div style="margin-top: 4px; font-size: 0.75rem; color: var(--text-muted);">
+ Data timestamp: ${timestampDate.toLocaleString()}
+ </div>`;
+ }
+
+ box.innerHTML = html;
+ box.style.display = 'block';
+ }
+
+ function renderResult(result) {
+ const resultEl = document.getElementById('result');
+ const { call, confidence, titles, metrics } = result;
+
+ const priceMaRatio = (result.metrics?.price && result.metrics?.ma200) ?
+ (result.metrics.price / result.metrics.ma200).toFixed(3) + 'x' : '-';
+
+ resultEl.innerHTML = `
+ <div><span class="result-pill ${call}">${call.toUpperCase()}</span> <strong>${titles.modeTitle}</strong></div>
+ <div style="margin-top: 8px; font-size: 0.8rem; color: #6b7280;">
+ Confidence: ${confidence.toFixed(0)}% | Flags: ${metrics.cheapScore} cheap, ${metrics.hotScore} hot, ${metrics.leverageScore} leverage
+ </div>
+ `;
+
+ renderExplainBox(result);
+ }
+
+ // === MODULE 4: PERSISTENCE LAYER ===
+ const HISTORY_KEY = 'btcHelperHistoryV2';
+ const PERSISTENCE_RULES = {
+ requireNDays: 4, // Require 4 of last 7 days for regime change
+ smoothingWindow: 3, // Smooth over last 3 days
+ maxHistoryDays: 365 * 5 // 5 years
+ };
 
  function getHistory() {
  const saved = localStorage.getItem(HISTORY_KEY);
@@ -223,55 +768,157 @@
  renderHistory();
  }
 
+ function shouldChangeRegime(newRegime, history) {
+ if (history.length < PERSISTENCE_RULES.requireNDays - 1) {
+ return true; // Not enough history yet
+ }
+
+ const recent = history.slice(-PERSISTENCE_RULES.requireNDays);
+ const sameCount = recent.filter(e => e.regime === newRegime).length;
+
+ return sameCount >= PERSISTENCE_RULES.requireNDays - 1;
+ }
+
+ function applySmoothing(newResult, history) {
+ // Smooth regime transitions using weighted average of recent regimes
+ if (history.length === 0) return newResult;
+
+ const smoothingWindow = PERSISTENCE_RULES.smoothingWindow;
+ const recent = history.slice(-smoothingWindow);
+ 
+ // Count regime occurrences in recent history
+ const regimeCounts = { aggressive: 0, normal: 0, cautious: 0, pause: 0 };
+ recent.forEach(entry => {
+ if (regimeCounts[entry.regime] !== undefined) {
+ regimeCounts[entry.regime]++;
+ }
+ });
+
+ // If recent history shows a clear majority, bias toward that regime
+ const total = recent.length;
+ const maxCount = Math.max(...Object.values(regimeCounts));
+ const maxRegime = Object.keys(regimeCounts).find(key => regimeCounts[key] === maxCount);
+
+ // Only apply smoothing if there's a clear majority (>= 50% of recent)
+ if (maxCount / total >= 0.5 && maxRegime !== newResult.call) {
+ // Apply momentum: if history shows strong bias, require extra confirmation
+ const confidenceReduction = 15;
+ return {
+ ...newResult,
+ call: maxRegime,
+ confidence: Math.max(0, newResult.confidence - confidenceReduction),
+ reasons: [...newResult.reasons, `Smoothed to ${maxRegime} based on ${maxCount}/${total} recent signals`],
+ warnings: [...newResult.warnings, `Regime transition smoothed to reduce whipsaw`]
+ };
+ }
+
+ return newResult;
+ }
+
  function renderHistory() {
  const history = getHistory();
  const tbody = document.getElementById('historyBody');
 
  if (history.length === 0) {
- tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #9ca3af; padding: 20px;">No history yet. Save your first evaluation!</td></tr>';
  return;
  }
 
- // Sort by date descending
- history.sort((a, b) => new Date(b.date) - new Date(a.date));
+ // Sort by date ascending for return calculation
+ const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
 
- tbody.innerHTML = history.slice(0, 100).map(entry => `
- <tr>
- <td>${new Date(entry.date).toLocaleDateString()}</td>
+ // Calculate returns for each entry
+ const historyWithReturns = sortedHistory.map((entry, index) => {
+ // Find price 30 days later
+ const entryDate = new Date(entry.date);
+ const futureDate = new Date(entryDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+ const futureEntry = sortedHistory.find(e => new Date(e.date) >= futureDate);
+ 
+ let return30d = null;
+ if (futureEntry && entry.price && futureEntry.price) {
+ return30d = ((futureEntry.price - entry.price) / entry.price) * 100;
+ }
+
+ return { ...entry, return30d };
+ });
+
+ // Sort back to descending for display
+ historyWithReturns.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+ // Identify regime changes
+ const regimeChanges = [];
+ for (let i = 1; i < historyWithReturns.length; i++) {
+ if (historyWithReturns[i].regime !== historyWithReturns[i-1].regime) {
+ regimeChanges.push(historyWithReturns[i].date);
+ }
+ }
+
+ tbody.innerHTML = historyWithReturns.slice(0, 100).map(entry => {
+ const returnColor = entry.return30d !== null ? 
+ (entry.return30d > 0 ? 'var(--success)' : 'var(--error)') : 'var(--text-muted)';
+ const returnText = entry.return30d !== null ? 
+ `<span style="color: ${returnColor}">${entry.return30d >= 0 ? '+' : ''}${entry.return30d.toFixed(1)}%</span>` : '-';
+ 
+ const isRegimeChange = regimeChanges.includes(entry.date);
+ const changeIndicator = isRegimeChange ? '🔄' : '';
+ const rowStyle = isRegimeChange ? 'background: rgba(37, 99, 235, 0.05);' : '';
+ 
+ return `
+ <tr style="${rowStyle}">
+ <td>${new Date(entry.date).toLocaleDateString()} ${changeIndicator}</td>
  <td><span class="mode-badge mode-${entry.regime}">${entry.regime}</span></td>
+ <td>${entry.confidence ? entry.confidence.toFixed(0) + '%' : '-'}</td>
  <td>${entry.price ? '$' + entry.price.toLocaleString() : '-'}</td>
  <td>${entry.priceMaRatio ? entry.priceMaRatio.toFixed(2) + 'x' : '-'}</td>
  <td>${entry.mvrvZ !== null && entry.mvrvZ !== undefined ? entry.mvrvZ.toFixed(2) : '-'}</td>
  <td>${entry.nupl !== null && entry.nupl !== undefined ? (entry.nupl * 100).toFixed(1) + '%' : '-'}</td>
+ <td>${returnText}</td>
  <td>${entry.notes || '-'}</td>
  </tr>
- `).join('');
+ `;
+ }).join('');
  }
 
  function saveEvaluation() {
- const price = parseFloat(document.getElementById('price').value);
- const ma200 = parseFloat(document.getElementById('ma200').value);
- const mvrvZ = parseFloat(document.getElementById('mvrvZ').value);
- const nupl = parseFloat(document.getElementById('nupl').value);
+ const inputs = collectInputs();
+ let result = compute_regime(inputs);
 
- const regime = getCurrentRegime();
- const priceMaRatio = (price && ma200) ? price / ma200 : null;
+ if (result.call === 'error') {
+ updateStatus(`Validation errors: ${result.reasons.join(', ')}`, 'error');
+ return;
+ }
+
+ const history = getHistory();
+ const priceMaRatio = (inputs.price && inputs.ma200) ? inputs.price / inputs.ma200 : null;
+
+ // Apply smoothing to reduce whipsaw
+ result = applySmoothing(result, history);
 
  const entry = {
  date: new Date().toISOString(),
- regime: regime,
- price: price || null,
+ regime: result.call,
+ confidence: result.confidence,
+ price: inputs.price,
  priceMaRatio: priceMaRatio,
- mvrvZ: isNaN(mvrvZ) ? null : mvrvZ,
- nupl: isNaN(nupl) ? null : nupl,
- notes: ''
+ mvrvZ: inputs.mvrvZ,
+ nupl: inputs.nupl,
+ notes: '',
+ metrics: result.metrics
  };
 
- const history = getHistory();
+ // Apply persistence rules: require N-of-M days for regime change
+ if (history.length > 0) {
+ const lastRegime = history[history.length - 1].regime;
+ if (lastRegime !== result.call && !shouldChangeRegime(result.call, history)) {
+ entry.regime = lastRegime; // Keep old regime until confirmed
+ entry.notes = `Regime change pending confirmation (${PERSISTENCE_RULES.requireNDays} of last ${PERSISTENCE_RULES.requireNDays} days needed)`;
+ }
+ }
+
  history.push(entry);
  saveHistory(history);
 
- updateStatus(`Saved ${new Date().toLocaleDateString()} - ${regime.toUpperCase()}`, 'success');
+ updateStatus(`Saved ${new Date().toLocaleDateString()} - ${result.call.toUpperCase()}`, 'success');
  }
 
  function clearHistory() {
@@ -289,14 +936,34 @@
  return;
  }
 
- const headers = ['Date', 'Regime', 'Price', 'Price/MA Ratio', 'MVRV-Z', 'NUPL'];
- const rows = history.map(e => [
+ // Sort by date ascending for return calculation
+ const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+ // Calculate returns for each entry
+ const historyWithReturns = sortedHistory.map((entry, index) => {
+ const entryDate = new Date(entry.date);
+ const futureDate = new Date(entryDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+ const futureEntry = sortedHistory.find(e => new Date(e.date) >= futureDate);
+ 
+ let return30d = null;
+ if (futureEntry && entry.price && futureEntry.price) {
+ return30d = ((futureEntry.price - entry.price) / entry.price) * 100;
+ }
+
+ return { ...entry, return30d };
+ });
+
+ const headers = ['Date', 'Regime', 'Confidence', 'Price', 'Price/MA Ratio', 'MVRV-Z', 'NUPL', '30d Return %', 'Notes'];
+ const rows = historyWithReturns.map(e => [
  new Date(e.date).toLocaleDateString(),
  e.regime,
+ e.confidence?.toFixed(0) || '',
  e.price || '',
  e.priceMaRatio?.toFixed(4) || '',
  e.mvrvZ || '',
- e.nupl || ''
+ e.nupl || '',
+ e.return30d !== null ? e.return30d.toFixed(2) : '',
+ e.notes || ''
  ]);
 
  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -310,38 +977,29 @@
  updateStatus('CSV exported!', 'success');
  }
 
- // === DATA PERSISTENCE ===
- function saveCurrentData() {
- const data = {
- price: document.getElementById('price').value,
- ma200: document.getElementById('ma200').value,
- realizedPrice: document.getElementById('realizedPrice').value,
- mvrvZ: document.getElementById('mvrvZ').value,
- sthMvrv: document.getElementById('sthMvrv').value,
- sthSopr: document.getElementById('sthSopr').value,
- funding: document.getElementById('funding').value,
- nupl: document.getElementById('nupl').value,
- puell: document.getElementById('puell').value,
- etfFlows: document.getElementById('etfFlows').value,
- oiBillions: document.getElementById('oiBillions').value,
- mktCapTrillions: document.getElementById('mktCapTrillions').value,
- dxy1m: document.getElementById('dxy1m').value,
- timestamp: new Date().toISOString()
+ // === MODULE 5: DATA COLLECTION & API ===
+ function collectInputs() {
+ return {
+ price: safeNum('price'),
+ realizedPrice: safeNum('realizedPrice'),
+ ma200: safeNum('ma200'),
+ mvrvZ: safeNum('mvrvZ'),
+ sthMvrv: safeNum('sthMvrv'),
+ sthSopr: safeNum('sthSopr'),
+ funding: safeNum('funding'),
+ nupl: safeNum('nupl'),
+ puell: safeNum('puell'),
+ etfFlows: safeNum('etfFlows'),
+ oiBillions: safeNum('oiBillions'),
+ mktCapTrillions: safeNum('mktCapTrillions'),
+ dxy1m: safeNum('dxy1m'),
+ timestamp: new Date().toISOString() // Current time for evaluation
  };
- localStorage.setItem('btcHelperData', JSON.stringify(data));
  }
 
- function loadSavedData() {
- const saved = localStorage.getItem('btcHelperData');
- if (saved) {
- const data = JSON.parse(saved);
- Object.keys(data).forEach(key => {
- if (key !== 'timestamp') {
- const el = document.getElementById(key);
- if (el) el.value = data[key];
- }
- });
- }
+ function safeNum(id) {
+ const v = parseFloat(document.getElementById(id).value);
+ return isFinite(v) ? v : null;
  }
 
  function updateStatus(msg, type) {
@@ -349,7 +1007,6 @@
  statusEl.innerHTML = `<span class="status ${type || 'status'}">${msg}</span>`;
  }
 
- // === API CALLS ===
  async function fetchCoingecko() {
  updateStatus('Fetching price & market cap...', 'loading');
  try {
@@ -400,150 +1057,289 @@
  saveCurrentData();
  }
 
- // === EVALUATION LOGIC ===
- function safeNum(id) {
- const v = parseFloat(document.getElementById(id).value);
- return isFinite(v) ? v : null;
+ function saveCurrentData() {
+ const data = collectInputs();
+ localStorage.setItem('btcHelperData', JSON.stringify(data));
  }
 
- let currentRegime = 'normal';
+ function loadSavedData() {
+ const saved = localStorage.getItem('btcHelperData');
+ if (saved) {
+ const data = JSON.parse(saved);
+ Object.keys(data).forEach(key => {
+ if (key !== 'timestamp') {
+ const el = document.getElementById(key);
+ if (el) el.value = data[key];
+ }
+ });
+ }
+ }
 
- function getCurrentRegime() { return currentRegime; }
-
+ // === MODULE 6: EVALUATION ENTRY POINT ===
  function evaluateRegime() {
- const price = safeNum('price');
- const realized = safeNum('realizedPrice');
- const ma200 = safeNum('ma200');
- const mvrvZ = safeNum('mvrvZ');
- const sthMvrv = safeNum('sthMvrv');
- const sthSopr = safeNum('sthSopr');
- const funding = safeNum('funding');
- const nupl = safeNum('nupl');
- const puell = safeNum('puell');
- const etfFlows = safeNum('etfFlows');
- const oiB = safeNum('oiBillions');
- const mktCapT = safeNum('mktCapTrillions');
- const dxy1m = safeNum('dxy1m');
-
- let oiPct = (oiB && mktCapT) ? oiB / (mktCapT * 10) : null;
-
- // Thresholds
- const cheap = { mvrvZ: 0, nupl: 0.25, sthMvrv: 1.0, puell: 0.5 };
- const hotMVRV = { warm: 3.5, top: 7.0 };
- const hotNUPL = { warm: 0.5, top: 0.75 };
- const hotSTH = { sthMvrv: 1.5 };
- const leverage = { oiPctRich: 0.025, oiPctExtreme: 0.04, fundingGoodLow: -5, fundingGoodHigh: 15, fundingExtreme: 30 };
- const priceBand = { farAboveRealized: 2.5, farAboveMA200: 2.4 };
- const macro = { dxySupportive: -2.0, dxyHeadwind: 2.0 };
-
- const priceBelowRealized = price && realized && price <= realized;
- const priceBelowMA = price && ma200 && price <= ma200;
- const priceFarAboveBands = price && realized && ma200 &&
- (price >= realized * priceBand.farAboveRealized || price >= ma200 * priceBand.farAboveMA200);
-
- let cheapScore = 0, hotScore = 0, leverageScore = 0;
-
- if (mvrvZ != null) {
- if (mvrvZ <= cheap.mvrvZ) cheapScore++;
- if (mvrvZ >= hotMVRV.warm) hotScore++;
- if (mvrvZ >= hotMVRV.top) hotScore++;
- }
- if (nupl != null) {
- if (nupl <= cheap.nupl) cheapScore++;
- if (nupl >= hotNUPL.warm) hotScore++;
- if (nupl >= hotNUPL.top) hotScore++;
- }
- if (sthMvrv != null) {
- if (sthMvrv < cheap.sthMvrv) cheapScore++;
- if (sthMvrv > hotSTH.sthMvrv) hotScore++;
- }
- if (puell != null) {
- if (puell < cheap.puell) cheapScore++;
- if (puell >= 4) hotScore++;
- if (puell >= 5) hotScore++;
- }
- if (oiPct != null) {
- if (oiPct > leverage.oiPctRich) leverageScore++;
- if (oiPct > leverage.oiPctExtreme) leverageScore++;
- }
- if (funding != null) {
- if (funding > leverage.fundingGoodHigh) leverageScore++;
- if (funding > leverage.fundingExtreme) leverageScore++;
- }
-
- let soprCheap = false, soprHot = false;
- if (sthSopr != null) {
- if (sthSopr < 0.98) { soprCheap = true; cheapScore++; }
- else if (sthSopr > 1.05) { soprHot = true; hotScore++; }
- }
-
- let flowSupport = false, flowCaution = false;
- if (etfFlows != null) {
- if (etfFlows >= 200) flowSupport = true;
- else if (etfFlows < 0) flowCaution = true;
- }
-
- let macroSupport = false, macroHeadwind = false;
- if (dxy1m != null) {
- if (dxy1m <= macro.dxySupportive) { macroSupport = true; cheapScore++; }
- else if (dxy1m >= macro.dxyHeadwind) { macroHeadwind = true; hotScore++; }
- }
-
- const strongCheap = cheapScore >= 3 || (cheapScore >= 2 && soprCheap);
- const warmHot = hotScore >= 2;
- const strongHot = hotScore >= 4;
- const leveraged = leverageScore >= 1;
- const veryLeveraged = leverageScore >= 2;
-
- let mode = 'normal', modeTitle = 'Normal stacking (mid-cycle / recovery)';
-
- if (strongCheap && (priceBelowRealized || priceBelowMA || macroSupport || flowSupport)) {
- mode = 'aggressive';
- modeTitle = 'Aggressive stacking (deep value zone)';
- } else if ((strongHot && leveraged && (priceFarAboveBands || macroHeadwind || flowCaution)) ||
- (warmHot && veryLeveraged && (priceFarAboveBands || macroHeadwind))) {
- mode = 'pause';
- modeTitle = 'Pause / lighten (euphoria / leverage risk)';
- } else if (warmHot && (leveraged || priceFarAboveBands || macroHeadwind)) {
- mode = 'cautious';
- modeTitle = 'Cautious stacking (overheating risk)';
- }
-
- currentRegime = mode;
-
- // Build result display
- const priceMaRatio = (price && ma200) ? (price / ma200).toFixed(3) + 'x' : '-';
- const resultEl = document.getElementById('result');
- resultEl.innerHTML = `
- <div><span class="result-pill ${mode}">${mode.toUpperCase()}</span> <strong>${modeTitle}</strong></div>
- <div style="margin-top: 8px; font-size: 0.8rem; color: #6b7280;">
- Price: $${price?.toLocaleString() || '?'} | 200-MA: $${ma200?.toLocaleString() || '?'} | Ratio: ${priceMaRatio}
- </div>
- `;
+ const inputs = collectInputs();
+ const result = compute_regime(inputs);
+ renderResult(result);
+ saveCurrentData();
 
  // Update summary box
  const summaryEl = document.getElementById('summaryBox');
  summaryEl.innerHTML = `
  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
  <strong>Today's Regime:</strong>
- <span class="mode-badge mode-${mode}">${mode.toUpperCase()}</span>
+ <span class="mode-badge mode-${result.call}">${result.call.toUpperCase()}</span>
  </div>
  <div style="font-size: 0.85rem; line-height: 1.6;">
- ${mode === 'aggressive' ? '💡 Consider increasing accumulation - deep value signals present.' :
- mode === 'cautious' ? '⚠️ Be selective with entries - warmth in markets.' :
- mode === 'pause' ? '⏸️ Consider pausing new buys - elevated risk.' :
+ ${result.call === 'aggressive' ? '💡 Consider increasing accumulation - deep value signals present.' :
+ result.call === 'cautious' ? '⚠️ Be selective with entries - warmth in markets.' :
+ result.call === 'pause' ? '⏸️ Consider pausing new buys - elevated risk.' :
  '✅ Maintain your baseline DCA - mixed signals.'}
  </div>
  `;
-
- saveCurrentData();
  }
 
- // Initialize
+ // === MODULE 7: TEST HARNESS ===
+ const GOLDEN_DATASET = [
+ {
+ date: '2020-03-12',
+ price: 4100,
+ ma200: 8500,
+ realizedPrice: 6000,
+ mvrvZ: -0.5,
+ sthMvrv: 0.8,
+ sthSopr: 0.95,
+ funding: -50,
+ nupl: -0.1,
+ puell: 6.5,
+ etfFlows: null,
+ oiBillions: 20,
+ mktCapTrillions: 0.075,
+ dxy1m: 5.0,
+ expectedRegime: 'aggressive',
+ notes: 'COVID crash capitulation'
+ },
+ {
+ date: '2021-04-14',
+ price: 63000,
+ ma200: 45000,
+ realizedPrice: 20000,
+ mvrvZ: 7.5,
+ sthMvrv: 2.0,
+ sthSopr: 1.10,
+ funding: 25,
+ nupl: 0.85,
+ puell: 2.5,
+ etfFlows: null,
+ oiBillions: 35,
+ mktCapTrillions: 1.2,
+ dxy1m: -1.0,
+ expectedRegime: 'pause',
+ notes: 'ATH euphoria'
+ },
+ {
+ date: '2022-11-21',
+ price: 16000,
+ ma200: 25000,
+ realizedPrice: 19500,
+ mvrvZ: -0.2,
+ sthMvrv: 0.9,
+ sthSopr: 0.97,
+ funding: -10,
+ nupl: -0.15,
+ puell: 0.4,
+ etfFlows: null,
+ oiBillions: 12,
+ mktCapTrillions: 0.31,
+ dxy1m: 2.0,
+ expectedRegime: 'aggressive',
+ notes: 'FTX collapse'
+ },
+ {
+ date: '2024-03-14',
+ price: 73000,
+ ma200: 50000,
+ realizedPrice: 25000,
+ mvrvZ: 3.2,
+ sthMvrv: 1.6,
+ sthSopr: 1.08,
+ funding: 15,
+ nupl: 0.6,
+ puell: 1.8,
+ etfFlows: 500,
+ oiBillions: 25,
+ mktCapTrillions: 1.44,
+ dxy1m: -0.5,
+ expectedRegime: 'cautious',
+ notes: 'ETF inflow euphoria'
+ }
+ ];
+
+ function runTests() {
+ const results = [];
+ let passed = 0;
+ let failed = 0;
+
+ GOLDEN_DATASET.forEach((test, index) => {
+ const inputs = {
+ price: test.price,
+ ma200: test.ma200,
+ realizedPrice: test.realizedPrice,
+ mvrvZ: test.mvrvZ,
+ sthMvrv: test.sthMvrv,
+ sthSopr: test.sthSopr,
+ funding: test.funding,
+ nupl: test.nupl,
+ puell: test.puell,
+ etfFlows: test.etfFlows,
+ oiBillions: test.oiBillions,
+ mktCapTrillions: test.mktCapTrillions,
+ dxy1m: test.dxy1m,
+ timestamp: new Date().toISOString()
+ };
+
+ const result = compute_regime(inputs);
+ const success = result.call === test.expectedRegime;
+
+ results.push({
+ date: test.date,
+ expected: test.expectedRegime,
+ actual: result.call,
+ success: success,
+ notes: test.notes
+ });
+
+ if (success) passed++;
+ else failed++;
+ });
+
+ // Render results
+ const testEl = document.getElementById('testResults');
+ let html = `<div><strong>Test Results:</strong> ${passed}/${GOLDEN_DATASET.length} passed</div>`;
+ html += `<div style="margin-top: 8px; font-size: 0.8rem;">`;
+ results.forEach(r => {
+ const status = r.success ? '✅' : '❌';
+ html += `<div>${status} ${r.date}: Expected ${r.expected}, Got ${r.actual}</div>`;
+ });
+ html += `</div>`;
+
+ testEl.innerHTML = html;
+ updateStatus(`Tests: ${passed} passed, ${failed} failed`, failed === 0 ? 'success' : 'error');
+ }
+
+ function showGoldenDataset() {
+ const testEl = document.getElementById('testResults');
+ let html = '<div><strong>Golden Dataset:</strong></div>';
+ html += '<div style="margin-top: 8px; font-size: 0.8rem;">';
+ GOLDEN_DATASET.forEach(test => {
+ html += `<div><strong>${test.date}</strong> - ${test.notes}<br>`;
+ html += `Price: $${test.price.toLocaleString()}, MVRV-Z: ${test.mvrvZ}, NUPL: ${(test.nupl * 100).toFixed(0)}%, Expected: ${test.expectedRegime}</div><br>`;
+ });
+ html += '</div>';
+ testEl.innerHTML = html;
+ }
+
+ // === RETURN ANALYSIS ===
+ function analyzeReturns() {
+ const history = getHistory();
+ if (history.length < 2) {
+ document.getElementById('testResults').innerHTML = '<div style="color: var(--warning);">Need at least 2 days of history for return analysis</div>';
+ return;
+ }
+
+ // Sort by date ascending for calculation
+ const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+ const analyzePeriod = (days) => {
+ const results = [];
+ for (let i = 0; i < sortedHistory.length; i++) {
+ const entry = sortedHistory[i];
+ const entryDate = new Date(entry.date);
+ const futureDate = new Date(entryDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+ // Find the price at future date
+ const futureEntry = sortedHistory.find(e => new Date(e.date) >= futureDate);
+ if (futureEntry && entry.price && futureEntry.price) {
+ const returnPct = ((futureEntry.price - entry.price) / entry.price) * 100;
+ results.push({
+ date: entry.date,
+ regime: entry.regime,
+ price: entry.price,
+ futurePrice: futureEntry.price,
+ returnPct: returnPct,
+ days: days
+ });
+ }
+ }
+ return results;
+ };
+
+ const returns30 = analyzePeriod(30);
+ const returns90 = analyzePeriod(90);
+ const returns180 = analyzePeriod(180);
+
+ // Calculate summary statistics
+ const calcStats = (returns) => {
+ if (returns.length === 0) return { avg: 0, median: 0, best: 0, worst: 0, count: 0 };
+ const values = returns.map(r => r.returnPct);
+ return {
+ avg: values.reduce((a, b) => a + b, 0) / values.length,
+ median: values.sort((a, b) => a - b)[Math.floor(values.length / 2)],
+ best: Math.max(...values),
+ worst: Math.min(...values),
+ count: values.length
+ };
+ };
+
+ const stats30 = calcStats(returns30);
+ const stats90 = calcStats(returns90);
+ const stats180 = calcStats(returns180);
+
+ // Render results
+ const testEl = document.getElementById('testResults');
+ let html = '<div><strong>Return Analysis (Based on History)</strong></div>';
+ html += '<div style="margin-top: 8px; font-size: 0.8rem;">';
+
+ const renderStats = (label, stats, returns) => {
+ if (stats.count === 0) {
+ return `<div><strong>${label}:</strong> No data points</div>`;
+ }
+ const avgColor = stats.avg > 0 ? 'var(--success)' : 'var(--error)';
+ return `
+ <div style="margin-bottom: 8px;">
+ <div><strong>${label}:</strong> <span style="color: ${avgColor}">${stats.avg.toFixed(2)}%</span> avg return (n=${stats.count})</div>
+ <div style="font-size: 0.75rem; color: var(--text-muted);">
+ Best: ${stats.best.toFixed(2)}% | Median: ${stats.median.toFixed(2)}% | Worst: ${stats.worst.toFixed(2)}%
+ </div>
+ </div>
+ `;
+ };
+
+ html += renderStats('30-Day Returns', stats30, returns30);
+ html += renderStats('90-Day Returns', stats90, returns90);
+ html += renderStats('180-Day Returns', stats180, returns180);
+
+ // Show per-regime breakdown
+ html += '<div style="margin-top: 12px;"><strong>Per-Regime Breakdown:</strong></div>';
+ const regimes = ['aggressive', 'normal', 'cautious', 'pause'];
+ regimes.forEach(regime => {
+ const regimeReturns = returns90.filter(r => r.regime === regime);
+ if (regimeReturns.length > 0) {
+ const avg = regimeReturns.reduce((a, b) => a + b.returnPct, 0) / regimeReturns.length;
+ const color = avg > 0 ? 'var(--success)' : 'var(--error)';
+ html += `<div style="font-size: 0.75rem;">${regime}: <span style="color: ${color}">${avg.toFixed(2)}%</span> avg 90-day return (${regimeReturns.length} samples)</div>`;
+ }
+ });
+
+ html += '</div>';
+ testEl.innerHTML = html;
+ updateStatus('Return analysis complete', 'success');
+ }
+
+ // === INITIALIZATION ===
  window.onload = function() {
  loadSavedData();
  renderHistory();
  };
  </script>
  </body>
- </html>
+</html>
