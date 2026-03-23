@@ -39,6 +39,8 @@
  button.auto-fill:hover { background: #1d4ed8; }
  button.link-btn { border: 1px solid #d1d5db; background: white; color: #111827; padding: 6px 10px; border-radius: 999px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
  button.link-btn:hover { background: #f3f4ff; }
+ input[type="password"] { letter-spacing: 1px; }
+ .api-section { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-left: 3px solid #059669; }
  .form-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
  .form-row label { font-size: 0.8rem; color: var(--text-muted); }
  .form-row input { width: 100%; padding: 5px 6px; border-radius: 6px; border: 1px solid #d1d5db; background: var(--input-bg); font-size: 0.85rem; }
@@ -90,15 +92,41 @@
  <!-- Left Column: Input & Evaluation -->
  <div>
  <div class="card">
- <h2>1. Auto-Fill & Evaluate</h2>
+ <h2>1. API Configuration</h2>
+ <div class="form-row" style="grid-template-columns: 2fr 1fr 1fr;">
+  <label>Coin Metrics API Key</label>
+  <input id="apiKey" type="password" placeholder="Enter API key" />
+  <small>Community tier (10K/mo)</small>
+ </div>
  <div class="button-row">
- <button class="auto-fill" onclick="autoFillData()">🔄 Auto-Fill</button>
- <button class="secondary" onclick="evaluateRegime()">📊 Evaluate Regime</button>
- <button class="secondary" onclick="saveEvaluation()">💾 Save Entry</button>
+  <button class="secondary" onclick="saveApiKey()">💾 Save Key</button>
+  <button class="secondary" onclick="clearApiKey()">🗑️ Clear Key</button>
+  <button class="link-btn" href="https://coinmetrics.io/api-key" target="_blank">Get API Key →</button>
  </div>
+ 
+ <div class="section-divider"></div>
+ 
+ <h2>2. Data Collection</h2>
+ <div class="button-row">
+  <button class="auto-fill" onclick="autoFillData()">🔄 Auto-Fill (Coingecko)</button>
+  <button class="auto-fill" onclick="fetchFromCoinMetrics()" style="background: #059669;">📥 Fetch All (Coin Metrics)</button>
+  <button class="secondary" onclick="evaluateRegime()">📊 Evaluate Regime</button>
+  <button class="secondary" onclick="saveEvaluation()">💾 Save Entry</button>
+ </div>
+ <div class="button-row">
+  <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">
+   <input type="checkbox" id="autoFetchToggle" onchange="toggleAutoFetch()" />
+   Auto-Fetch Daily
+  </label>
+  <button class="secondary" onclick="clearCache()" style="margin-left: auto;">🗑️ Clear Cache</button>
+ </div>
+ 
  <div class="status-bar" id="statusBar">
- <span class="status" id="status1">Ready</span>
+  <span class="status" id="status1">Ready</span>
  </div>
+ 
+ <div id="cacheStatus" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);"></div>
+ <div id="rateLimitStatus" style="margin-top: 4px; font-size: 0.75rem;"></div>
 
  <div class="section-divider"></div>
 
@@ -229,14 +257,41 @@
  </div>
 
  <div class="card" style="margin-top: 16px;">
- <h2>4. Today's Summary</h2>
+ <h2>4. API & Cache Status</h2>
+ <div style="font-size: 0.85rem;">
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+   <div>
+    <strong>API Status:</strong>
+    <div id="apiStatusDisplay" style="margin-top: 4px; color: var(--text-muted); font-size: 0.75rem;">
+     No API key configured
+    </div>
+   </div>
+   <div>
+    <strong>Cache Status:</strong>
+    <div id="cacheStatusDisplay" style="margin-top: 4px; color: var(--text-muted); font-size: 0.75rem;">
+     No cached data
+    </div>
+   </div>
+  </div>
+  <div style="margin-top: 12px;">
+   <strong>Rate Limit:</strong>
+   <div id="rateLimitBar" style="margin-top: 4px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+    <div id="rateLimitFill" style="width: 0%; height: 100%; background: var(--success); transition: width 0.3s;"></div>
+   </div>
+   <div id="rateLimitText" style="margin-top: 2px; font-size: 0.75rem; color: var(--text-muted);">0/10000 used</div>
+  </div>
+ </div>
+ </div>
+
+ <div class="card" style="margin-top: 16px;">
+ <h2>5. Today's Summary</h2>
  <div id="summaryBox" style="padding: 12px; background: #f9fafb; border-radius: 8px;">
  <p style="margin: 0; color: #6b7280;">Click "Evaluate Regime" to see today's summary.</p>
  </div>
  </div>
 
  <div class="card" style="margin-top: 16px;">
- <h2>5. Test Harness</h2>
+ <h2>6. Test Harness</h2>
  <div class="button-row">
  <button class="secondary" onclick="runTests()">🧪 Run Tests</button>
  <button class="secondary" onclick="showGoldenDataset()">📋 Show Golden Dataset</button>
@@ -258,7 +313,7 @@
  </div>
 
  <div class="card" style="margin-top: 16px;">
- <h2>6. Metric Sources</h2>
+ <h2>7. Metric Sources</h2>
  <p style="font-size: 0.85rem; margin-bottom: 12px;">Official sources for each metric:</p>
  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.78rem;">
   <div>
@@ -310,6 +365,304 @@
  </div>
 
  <script>
+ // === MODULE 8: COIN METRICS API CLIENT ===
+ // (Include the Coin Metrics API class inline)
+ class CoinMetricsAPI {
+  constructor(apiKey) {
+    this.baseURL = 'https://api.coinmetrics.io/v4';
+    this.apiKey = apiKey;
+    this.callCount = 0;
+    this.maxCalls = 10000;
+    this.lastCallTime = 0;
+    this.minInterval = 100;
+  }
+
+  isRateLimited() {
+    return this.callCount >= this.maxCalls;
+  }
+
+  getRemainingCalls() {
+    return Math.max(0, this.maxCalls - this.callCount);
+  }
+
+  trackCall() {
+    this.callCount++;
+    this.lastCallTime = Date.now();
+  }
+
+  async fetchWithRateLimit(url, options = {}) {
+    if (this.isRateLimited()) {
+      throw new Error(`Rate limit exceeded: ${this.callCount}/${this.maxCalls} calls used this month`);
+    }
+
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastCallTime;
+    if (timeSinceLastCall < this.minInterval) {
+      await new Promise(resolve => setTimeout(resolve, this.minInterval - timeSinceLastCall));
+    }
+
+    const headers = { 'Accept': 'application/json', ...options.headers };
+    if (this.apiKey && this.apiKey.trim()) {
+      headers['X-CM-APIKEY'] = this.apiKey;
+    }
+
+    this.trackCall();
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (!response.ok) {
+      let errorText = '';
+      try { errorText = await response.text(); } catch (e) { errorText = response.statusText; }
+      throw new Error(`API Error ${response.status}: ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  async getMetric(asset, metric, startDate, endDate) {
+    const url = `${this.baseURL}/timeseries/asset-metrics?assets=${asset}&metrics=${metric}&start_time=${startDate}&end_time=${endDate}&frequency=1d&page_size=1000`;
+    const data = await this.fetchWithRateLimit(url);
+    return data.series?.map(d => ({ time: d.time, value: d[metric] })) || [];
+  }
+
+  async getSeries(asset, metrics, startDate, endDate) {
+    const metricsStr = metrics.join(',');
+    const url = `${this.baseURL}/timeseries/asset-metrics?assets=${asset}&metrics=${metricsStr}&start_time=${startDate}&end_time=${endDate}&frequency=1d&page_size=1000`;
+    const data = await this.fetchWithRateLimit(url);
+    
+    const result = {};
+    metrics.forEach(metric => {
+      result[metric] = data.series?.map(d => ({ time: d.time, value: d[metric] })) || [];
+    });
+    return result;
+  }
+
+  async getLatestMetric(asset, metric) {
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const data = await this.getMetric(asset, metric, startDate, endDate);
+    return data.length > 0 ? data[data.length - 1].value : null;
+  }
+
+  async getCurrentPrice() { return this.getLatestMetric('btc', 'PriceUSD'); }
+  async getMarketCap() { return this.getLatestMetric('btc', 'MarketCapUSD'); }
+  async getRealizedCap() { return this.getLatestMetric('btc', 'RealizedCapUSD'); }
+  async getMVRVZ() { return this.getLatestMetric('btc', 'MVRVZ'); }
+  async getMinerRevenue() { return this.getLatestMetric('btc', 'MinerRevenueUSD'); }
+  async getETFFlows() { return this.getLatestMetric('btc', 'ETFNetFlowsUSD'); }
+  async getSupply() { return this.getLatestMetric('btc', 'Supply'); }
+
+  async getAllPrimaryMetrics() {
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const metrics = ['PriceUSD', 'MarketCapUSD', 'RealizedCapUSD', 'MVRVZ', 'MinerRevenueUSD', 'ETFNetFlowsUSD', 'Supply'];
+    
+    try {
+      const series = await this.getSeries('btc', metrics, startDate, endDate);
+      const latest = {};
+      metrics.forEach(metric => {
+        const data = series[metric];
+        latest[metric] = data.length > 0 ? data[data.length - 1].value : null;
+      });
+      if (latest.MarketCapUSD && latest.RealizedCapUSD) {
+        latest.NUPL = latest.MarketCapUSD / latest.RealizedCapUSD - 1;
+      }
+      return { success: true, data: latest, series: series, timestamp: new Date().toISOString() };
+    } catch (error) {
+      return { success: false, error: error.message, timestamp: new Date().toISOString() };
+    }
+  }
+
+  async getMA200() {
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 250 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const priceData = await this.getMetric('btc', 'PriceUSD', startDate, endDate);
+    if (priceData.length < 200) throw new Error('Insufficient data for 200-day MA');
+    const last200 = priceData.slice(-200);
+    const sum = last200.reduce((acc, d) => acc + d.value, 0);
+    return sum / 200;
+  }
+
+  async getPuellMultiple() {
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const revenueData = await this.getMetric('btc', 'MinerRevenueUSD', startDate, endDate);
+    if (revenueData.length < 365) throw new Error('Insufficient data for Puell Multiple');
+    const last365 = revenueData.slice(-365);
+    const sum = last365.reduce((acc, d) => acc + d.value, 0);
+    const avgRevenue = sum / 365;
+    const currentRevenue = revenueData[revenueData.length - 1].value;
+    return avgRevenue > 0 ? currentRevenue / avgRevenue : null;
+  }
+
+  getFallbackSuggestion(error) {
+    if (error.message.includes('Rate limit')) {
+      return { type: 'rate_limit', message: 'Rate limit reached. Use cache or wait.', action: 'use_cache' };
+    }
+    return { type: 'unknown', message: error.message, action: 'manual_entry' };
+  }
+ }
+
+ // === MODULE 9: DATA CACHE & SCHEDULER ===
+ class DataCache {
+  constructor(options = {}) {
+    this.snapshots = {};
+    this.maxAge = options.maxAge || 24 * 60 * 60 * 1000;
+    this.storageKey = options.storageKey || 'btcHelperCache';
+    this.maxSnapshots = options.maxSnapshots || 365;
+    this.autoSave = options.autoSave !== false;
+    if (typeof localStorage !== 'undefined') this.loadFromStorage();
+  }
+
+  getDateKey(date) {
+    if (typeof date === 'string') return date;
+    if (date instanceof Date) return date.toISOString().split('T')[0];
+    return new Date(date).toISOString().split('T')[0];
+  }
+
+  isFresh(timestamp) {
+    return (Date.now() - new Date(timestamp).getTime()) < this.maxAge;
+  }
+
+  get(date) {
+    const dateKey = this.getDateKey(date);
+    const snapshot = this.snapshots[dateKey];
+    if (!snapshot) return null;
+    if (!this.isFresh(snapshot.timestamp)) return null;
+    return snapshot.data;
+  }
+
+  set(date, data, source = 'manual') {
+    const dateKey = this.getDateKey(date);
+    this.snapshots[dateKey] = { data, timestamp: new Date().toISOString(), source };
+    this.cleanup();
+    if (this.autoSave) this.saveToStorage();
+  }
+
+  getToday() { return this.get(new Date()); }
+
+  getLatest() {
+    const dates = Object.keys(this.snapshots).sort().reverse();
+    for (const date of dates) {
+      const snapshot = this.snapshots[date];
+      if (this.isFresh(snapshot.timestamp)) return { date, data: snapshot.data, timestamp: snapshot.timestamp };
+    }
+    return null;
+  }
+
+  cleanup() {
+    const dates = Object.keys(this.snapshots);
+    dates.forEach(date => {
+      const snapshot = this.snapshots[date];
+      if (!this.isFresh(snapshot.timestamp)) delete this.snapshots[date];
+    });
+    const allDates = Object.keys(this.snapshots).sort();
+    if (allDates.length > this.maxSnapshots) {
+      allDates.slice(0, allDates.length - this.maxSnapshots).forEach(date => delete this.snapshots[date]);
+    }
+  }
+
+  getStats() {
+    const dates = Object.keys(this.snapshots);
+    const freshCount = dates.filter(date => this.isFresh(this.snapshots[date].timestamp)).length;
+    return {
+      totalSnapshots: dates.length,
+      freshSnapshots: freshCount,
+      oldestDate: dates.sort()[0] || null,
+      newestDate: dates.sort().reverse()[0] || null,
+      storageSize: JSON.stringify(this.snapshots).length
+    };
+  }
+
+  export() { return JSON.stringify({ snapshots: this.snapshots, maxAge: this.maxAge, maxSnapshots: this.maxSnapshots, exportedAt: new Date().toISOString() }, null, 2); }
+
+  import(data) {
+    if (typeof data === 'string') data = JSON.parse(data);
+    if (data.snapshots) this.snapshots = data.snapshots;
+    if (data.maxAge) this.maxAge = data.maxAge;
+    if (data.maxSnapshots) this.maxSnapshots = data.maxSnapshots;
+    this.cleanup();
+    return true;
+  }
+
+  saveToStorage() {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify({ snapshots: this.snapshots, maxAge: this.maxAge, maxSnapshots: this.maxSnapshots, savedAt: new Date().toISOString() }));
+      return true;
+    } catch (e) { console.warn('Failed to save cache:', e); return false; }
+  }
+
+  loadFromStorage() {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      const saved = localStorage.getItem(this.storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.snapshots) this.snapshots = data.snapshots;
+        if (data.maxAge) this.maxAge = data.maxAge;
+        if (data.maxSnapshots) this.maxSnapshots = data.maxSnapshots;
+        this.cleanup();
+        return true;
+      }
+    } catch (e) { console.warn('Failed to load cache:', e); }
+    return false;
+  }
+
+  clear() {
+    this.snapshots = {};
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(this.storageKey);
+  }
+
+  clearExpired() {
+    const dates = Object.keys(this.snapshots);
+    dates.forEach(date => {
+      const snapshot = this.snapshots[date];
+      if (!this.isFresh(snapshot.timestamp)) delete this.snapshots[date];
+    });
+  }
+ }
+
+ // === MODULE 10: EXTERNAL APIS (Binance, FRED) ===
+ class ExternalAPIs {
+  constructor() {
+    this.binaceBase = 'https://fapi.binance.com';
+  }
+
+  async fetchJSON(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
+  async getBinanceFundingRate() {
+    try {
+      const data = await this.fetchJSON(`${this.binaceBase}/fapi/v1/premiumIndex?symbol=BTCUSDT`);
+      const rate = parseFloat(data.lastFundingRate) || 0;
+      return { success: true, rate, annualized: rate * 100 * 3 * 365, timestamp: new Date().toISOString() };
+    } catch (error) { return { success: false, error: error.message }; }
+  }
+
+  async getBinanceOpenInterest() {
+    try {
+      const data = await this.fetchJSON(`${this.binaceBase}/fapi/v1/openInterest?symbol=BTCUSDT`);
+      return { success: true, openInterestBTC: parseFloat(data.openInterest) || 0, timestamp: new Date().toISOString() };
+    } catch (error) { return { success: false, error: error.message }; }
+  }
+
+  async getAllExternalMetrics() {
+    const [funding, oi] = await Promise.allSettled([
+      this.getBinanceFundingRate(),
+      this.getBinanceOpenInterest()
+    ]);
+    return {
+      fundingRate: funding.status === 'fulfilled' ? funding.value : { success: false, error: 'Failed' },
+      openInterest: oi.status === 'fulfilled' ? oi.value : { success: false, error: 'Failed' },
+      timestamp: new Date().toISOString()
+    };
+  }
+ }
+
  // === MODULE 1: INPUT SCHEMA & VALIDATION ===
  const INPUT_SCHEMA = {
  price: { name: 'Spot Price', unit: 'USD', required: true, min: 1, max: 1000000, description: 'Current BTC price in USD' },
@@ -1039,6 +1392,21 @@
  }
 
  // === MODULE 5: DATA COLLECTION & API ===
+ // Global API instances
+ let coinMetricsAPI = null;
+ let dataCache = new DataCache();
+ let externalAPIs = new ExternalAPIs();
+ let autoFetchInterval = null;
+
+ function initializeAPIs() {
+  const apiKey = localStorage.getItem('coinMetricsApiKey') || '';
+  if (apiKey) {
+    document.getElementById('apiKey').value = apiKey;
+    coinMetricsAPI = new CoinMetricsAPI(apiKey);
+    updateRateLimitStatus();
+  }
+ }
+
  function collectInputs() {
  return {
  price: safeNum('price'),
@@ -1054,7 +1422,7 @@
  oiBillions: safeNum('oiBillions'),
  mktCapTrillions: safeNum('mktCapTrillions'),
  dxy1m: safeNum('dxy1m'),
- timestamp: new Date().toISOString() // Current time for evaluation
+ timestamp: new Date().toISOString()
  };
  }
 
@@ -1066,6 +1434,78 @@
  function updateStatus(msg, type) {
  const statusEl = document.getElementById('statusBar');
  statusEl.innerHTML = `<span class="status ${type || 'status'}">${msg}</span>`;
+ }
+
+ function updateCacheStatus() {
+ const stats = dataCache.getStats();
+ const cacheStatusEl = document.getElementById('cacheStatus');
+ if (cacheStatusEl) {
+  const newest = stats.newestDate ? new Date(stats.newestDate).toLocaleDateString() : 'None';
+  cacheStatusEl.innerHTML = `Cache: ${stats.freshSnapshots}/${stats.totalSnapshots} fresh • Newest: ${newest}`;
+ }
+ }
+
+ function updateRateLimitStatus() {
+  const rateLimitEl = document.getElementById('rateLimitStatus');
+  const rateLimitBar = document.getElementById('rateLimitFill');
+  const rateLimitText = document.getElementById('rateLimitText');
+  const apiStatusDisplay = document.getElementById('apiStatusDisplay');
+  
+  if (coinMetricsAPI) {
+    const used = coinMetricsAPI.callCount;
+    const max = coinMetricsAPI.maxCalls;
+    const remaining = coinMetricsAPI.getRemainingCalls();
+    const percentage = (used / max) * 100;
+    const color = percentage > 80 ? 'var(--error)' : percentage > 50 ? 'var(--warning)' : 'var(--success)';
+    
+    if (rateLimitBar) {
+      rateLimitBar.style.width = `${percentage}%`;
+      rateLimitBar.style.background = color;
+    }
+    
+    if (rateLimitText) {
+      rateLimitText.innerHTML = `${used}/${max} used (${remaining} remaining)`;
+      rateLimitText.style.color = color;
+    }
+    
+    if (apiStatusDisplay) {
+      apiStatusDisplay.innerHTML = `<span style="color: ${color}">●</span> Connected (${used} calls this session)`;
+      apiStatusDisplay.style.color = color;
+    }
+    
+    if (rateLimitEl) {
+      rateLimitEl.innerHTML = `API Calls: <span style="color: ${color}">${used}/${max}</span> used (${remaining} remaining)`;
+    }
+  } else {
+    if (rateLimitBar) {
+      rateLimitBar.style.width = '0%';
+    }
+    if (rateLimitText) {
+      rateLimitText.innerHTML = 'No API key configured';
+      rateLimitText.style.color = 'var(--text-muted)';
+    }
+    if (apiStatusDisplay) {
+      apiStatusDisplay.innerHTML = 'No API key configured';
+      apiStatusDisplay.style.color = 'var(--text-muted)';
+    }
+  }
+ }
+
+ function updateCacheStatus() {
+  const stats = dataCache.getStats();
+  const cacheStatusEl = document.getElementById('cacheStatus');
+  const cacheStatusDisplay = document.getElementById('cacheStatusDisplay');
+  
+  const newest = stats.newestDate ? new Date(stats.newestDate).toLocaleDateString() : 'None';
+  const freshness = stats.freshSnapshots > 0 ? `(${stats.freshSnapshots} fresh)` : '';
+  
+  if (cacheStatusEl) {
+    cacheStatusEl.innerHTML = `Cache: ${stats.freshSnapshots}/${stats.totalSnapshots} fresh • Newest: ${newest}`;
+  }
+  
+  if (cacheStatusDisplay) {
+    cacheStatusDisplay.innerHTML = `${stats.totalSnapshots} snapshots ${freshness}<br>Newest: ${newest}`;
+  }
  }
 
  async function fetchCoingecko() {
@@ -1116,6 +1556,160 @@
  const priceData = await fetchCoingecko();
  await fetch200DayMA(priceData?.usd);
  saveCurrentData();
+ }
+
+ async function fetchFromCoinMetrics() {
+ if (!coinMetricsAPI) {
+  updateStatus('⚠ No API key configured', 'error');
+  return;
+ }
+
+ updateStatus('Fetching from Coin Metrics...', 'loading');
+ 
+ try {
+  // Check cache first
+  const cached = dataCache.getToday();
+  if (cached) {
+    console.log('Using cached data');
+    fillMetricFields(cached);
+    updateStatus('✓ Loaded from cache', 'success');
+    updateCacheStatus();
+    return;
+  }
+
+  // Fetch primary metrics
+  const result = await coinMetricsAPI.getAllPrimaryMetrics();
+  
+  if (!result.success) {
+    const suggestion = coinMetricsAPI.getFallbackSuggestion(new Error(result.error));
+    updateStatus(`⚠ ${suggestion.message}`, 'error');
+    updateRateLimitStatus();
+    return;
+  }
+
+  const data = result.data;
+  
+  // Calculate additional metrics
+  const computed = {};
+  
+  // 200-day MA
+  if (result.series?.PriceUSD?.length >= 200) {
+    const last200 = result.series.PriceUSD.slice(-200);
+    const sum = last200.reduce((acc, d) => acc + d.value, 0);
+    computed.MA200 = sum / 200;
+  }
+
+  // Realized Price
+  if (data.RealizedCapUSD && data.Supply) {
+    computed.RealizedPrice = data.RealizedCapUSD / data.Supply;
+  }
+
+  // Puell Multiple
+  if (result.series?.MinerRevenueUSD?.length >= 365) {
+    const last365 = result.series.MinerRevenueUSD.slice(-365);
+    const sum = last365.reduce((acc, d) => acc + d.value, 0);
+    const avgRevenue = sum / 365;
+    if (avgRevenue > 0) {
+      const currentRevenue = result.series.MinerRevenueUSD[result.series.MinerRevenueUSD.length - 1].value;
+      computed.PuellMultiple = currentRevenue / avgRevenue;
+    }
+  }
+
+  // Market Cap in trillions
+  computed.MarketCapTrillions = data.MarketCapUSD / 1e12;
+
+  // Fetch external metrics (Binance)
+  try {
+    const external = await externalAPIs.getAllExternalMetrics();
+    if (external.fundingRate.success) {
+      data.FundingRate = external.fundingRate.annualized;
+    }
+    if (external.openInterest.success) {
+      data.OpenInterestBTC = external.openInterest.openInterestBTC;
+      if (data.MarketCapUSD) {
+        data.OIPercentage = (external.openInterest.openInterestBTC * data.PriceUSD) / data.MarketCapUSD;
+      }
+    }
+  } catch (e) {
+    console.warn('External API error:', e);
+  }
+
+  // Cache the result
+  const cacheData = { ...data, ...computed, timestamp: result.timestamp, source: 'api' };
+  dataCache.set(new Date(), cacheData, 'api');
+  
+  // Fill the form fields
+  fillMetricFields(cacheData);
+  
+  updateStatus('✓ Fetched all metrics', 'success');
+  updateRateLimitStatus();
+  updateCacheStatus();
+  
+  saveCurrentData();
+ } catch (error) {
+  console.error('Coin Metrics error:', error);
+  updateStatus(`⚠ ${error.message}`, 'error');
+  updateRateLimitStatus();
+ }
+ }
+
+ function fillMetricFields(data) {
+ if (data.PriceUSD) document.getElementById('price').value = Math.round(data.PriceUSD);
+ if (data.MA200) document.getElementById('ma200').value = Math.round(data.MA200);
+ if (data.RealizedPrice) document.getElementById('realizedPrice').value = Math.round(data.RealizedPrice);
+ if (data.MVRVZ) document.getElementById('mvrvZ').value = data.MVRVZ.toFixed(2);
+ if (data.NUPL) document.getElementById('nupl').value = (data.NUPL * 100).toFixed(1);
+ if (data.PuellMultiple) document.getElementById('puell').value = data.PuellMultiple.toFixed(2);
+ if (data.MarketCapTrillions) document.getElementById('mktCapTrillions').value = data.MarketCapTrillions.toFixed(2);
+ if (data.FundingRate) document.getElementById('funding').value = data.FundingRate.toFixed(1);
+ if (data.OpenInterestBTC) {
+   const oiBillions = (data.OpenInterestBTC * (data.PriceUSD || 1)) / 1e9;
+   document.getElementById('oiBillions').value = oiBillions.toFixed(2);
+ }
+ if (data.ETFNetFlowsUSD) document.getElementById('etfFlows').value = Math.round(data.ETFNetFlowsUSD / 1e6);
+ }
+
+ function saveApiKey() {
+ const apiKey = document.getElementById('apiKey').value.trim();
+ if (apiKey) {
+   localStorage.setItem('coinMetricsApiKey', apiKey);
+   coinMetricsAPI = new CoinMetricsAPI(apiKey);
+   updateStatus('✓ API key saved', 'success');
+   updateRateLimitStatus();
+ } else {
+   updateStatus('⚠ Enter API key first', 'warning');
+ }
+ }
+
+ function clearApiKey() {
+ localStorage.removeItem('coinMetricsApiKey');
+ document.getElementById('apiKey').value = '';
+ coinMetricsAPI = null;
+ updateStatus('✓ API key cleared', 'success');
+ updateRateLimitStatus();
+ }
+
+ function toggleAutoFetch() {
+ const enabled = document.getElementById('autoFetchToggle').checked;
+ if (enabled) {
+   if (autoFetchInterval) clearInterval(autoFetchInterval);
+   autoFetchInterval = setInterval(() => {
+     fetchFromCoinMetrics();
+   }, 24 * 60 * 60 * 1000); // Daily
+   updateStatus('✓ Auto-fetch enabled (daily)', 'success');
+ } else {
+   if (autoFetchInterval) {
+     clearInterval(autoFetchInterval);
+     autoFetchInterval = null;
+   }
+   updateStatus('Auto-fetch disabled', 'success');
+ }
+ }
+
+ function clearCache() {
+   dataCache.clear();
+   updateStatus('✓ Cache cleared', 'success');
+   updateCacheStatus();
  }
 
  function saveCurrentData() {
@@ -1477,8 +2071,11 @@ const GOLDEN_DATASET = [
 
  // === INITIALIZATION ===
  window.onload = function() {
+ initializeAPIs();
  loadSavedData();
  renderHistory();
+ updateCacheStatus();
+ updateRateLimitStatus();
  };
  </script>
  </body>
